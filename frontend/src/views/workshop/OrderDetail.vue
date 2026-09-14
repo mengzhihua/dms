@@ -28,7 +28,7 @@
           <router-link :to="`/survey/answer?id=${order.surveyId}`">满意度调研 #{{ order.surveyId }}</router-link>
         </el-descriptions-item>
         <el-descriptions-item v-if="order.invoiceId" label="发票">
-          <router-link to="/invoice/list">发票 #{{ order.invoiceId }}</router-link>
+          <router-link :to="`/invoice/list?id=${order.invoiceId}`">发票 #{{ order.invoiceId }}</router-link>
         </el-descriptions-item>
       </el-descriptions>
 
@@ -223,7 +223,11 @@ const stepNames = {
 const stepIndex = computed(() => {
   if (!order.value) return 0
   if (order.value.status === 'CLOSED') return steps.length
-  if (order.value.status === 'CANCELLED') return 0
+  if (order.value.status === 'CANCELLED') {
+    const cancelLog = [...logs.value].reverse().find((l) => l.toStatus === 'CANCELLED')
+    const i = cancelLog ? steps.indexOf(cancelLog.fromStatus) : -1
+    return i >= 0 ? i : 0
+  }
   if (order.value.status === 'QC_FAILED') return steps.indexOf('IN_REPAIR')
   const i = steps.indexOf(order.value.status)
   return i < 0 ? 0 : i + 1

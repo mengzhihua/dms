@@ -58,6 +58,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StatusTag from '../../components/StatusTag.vue'
 import { invoice } from '../../api'
@@ -71,13 +72,21 @@ const previewVisible = ref(false)
 const previewText = ref('')
 const createForm = ref({})
 const query = reactive({ current: 1, size: 20, keyword: '' })
+const route = useRoute()
+const focusId = route.query.id
 
 async function load() {
   loading.value = true
   try {
-    const p = await invoice.invoice.page({ ...query, dealerCode: store.dealerCode })
-    rows.value = p.records || []
-    total.value = p.total || 0
+    if (focusId) {
+      const inv = await invoice.invoice.get(focusId)
+      rows.value = inv ? [inv] : []
+      total.value = rows.value.length
+    } else {
+      const p = await invoice.invoice.page({ ...query, dealerCode: store.dealerCode })
+      rows.value = p.records || []
+      total.value = p.total || 0
+    }
   } finally {
     loading.value = false
   }
