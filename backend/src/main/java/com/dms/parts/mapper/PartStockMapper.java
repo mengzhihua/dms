@@ -6,6 +6,11 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 public interface PartStockMapper extends BaseMapper<PartStock> {
+    /** 原子入库累加 */
+    @Update(
+            "UPDATE dms_part_stock SET qty = qty + #{n}, updated_at = NOW() WHERE id = #{id}")
+    int atomicAddQty(@Param("id") Long id, @Param("n") int n);
+
     /** 原子预留：仅当可用量(qty-reserved)足够时成功 */
     @Update(
             "UPDATE dms_part_stock SET reserved_qty = reserved_qty + #{need}, updated_at = NOW()"

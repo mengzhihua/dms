@@ -65,7 +65,8 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 - `HttpTaxAdapter` 为真实税控对接骨架：`POST {dms.tax.endpoint}/issue|/query|/red-flush`，头 `X-App-Id`/`X-App-Secret`，响应 JSON `{success, code, number, checkCode, pdfUrl, providerRef, errorMsg}`。
 - 配置：`dms.tax.provider=MOCK|HTTP`；`dms.tax.endpoint/app-id/app-secret`。
 - 红冲：`POST /api/invoice/{id}/red-flush` 生成负数红字发票并把原票置为 `RED_FLUSHED`。
-- 异步回写：`POST /api/invoice/callback/{provider}`（按 providerRef 或发票号码定位）。
+- 发票状态机：`DRAFT → ISSUING → ISSUED → RED_FLUSHING → RED_FLUSHED`（失败落 FAILED，红冲失败回退 ISSUED）；开具/红冲均为原子状态抢占，防并发重复。
+- 异步回写：`POST /api/invoice/callback/{provider}`（按 providerRef 或发票号码定位；仅接受 ISSUED/FAILED/RED_FLUSHED；`dms.tax.callback-token` 非空时需携带 `X-Tax-Callback-Token` 头）。
 - 税收分类编码：工时（修理修配服务）`3040502000000000000`，备件 `1090511010000000000`。
 - `POST /api/invoice/{id}/issue` 幂等：已 ISSUED 直接返回原票。
 

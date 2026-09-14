@@ -18,4 +18,5 @@ public class WorkOrderPart extends BaseEntity {
     private BigDecimal amount;
     private Boolean isWarranty;
     private Boolean reservedFlag;
+    private Boolean consumedFlag;
 }

@@ -64,8 +64,10 @@ public class PartStockService {
             s.setReservedQty(0);
             stockMapper.insert(s);
         } else {
+            if (stockMapper.atomicAddQty(s.getId(), qty) == 0) {
+                throw new BizException("备件 " + partNo + " 入库失败，请重试");
+            }
             s.setQty(s.getQty() + qty);
-            stockMapper.updateById(s);
         }
         log(dealerCode, partNo, "IN", qty, null, null, location, batchNo);
         return s;

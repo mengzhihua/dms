@@ -161,6 +161,25 @@ public class InvoiceService {
             line.setTaxCategoryCode(TAX_CODE_PART);
             lineMapper.insert(line);
         }
+        // 折扣行：保证 Σ行金额 = 发票含税金额（customerPayable 已扣折扣）
+        if (o.getDiscountAmount() != null
+                && o.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal neg = o.getDiscountAmount().negate();
+            InvoiceLine line = new InvoiceLine();
+            line.setInvoiceId(inv.getId());
+            line.setName("折扣");
+            line.setUnit("次");
+            line.setQty(BigDecimal.ONE);
+            line.setUnitPrice(neg);
+            line.setAmount(neg);
+            line.setTaxRate(inv.getTaxRate());
+            line.setTaxAmount(
+                    neg.divide(BigDecimal.ONE.add(inv.getTaxRate()), 10, RoundingMode.HALF_UP)
+                            .multiply(inv.getTaxRate())
+                            .setScale(2, RoundingMode.HALF_UP));
+            line.setTaxCategoryCode(TAX_CODE_LABOR);
+            lineMapper.insert(line);
+        }
         return inv.getId();
     }
 
@@ -182,12 +201,16 @@ public class InvoiceService {
         if ("ISSUED".equals(inv.getStatus())) {
             return inv;
         }
-        if (!"DRAFT".equals(inv.getStatus()) && !"FAILED".equals(inv.getStatus())) {
-            throw new BizException("当前状态不允许开具: " + inv.getStatus());
-        }
         List<InvoiceLine> lines = lines(id);
+        // 原子抢占 ISSUING，防止并发重复开具
+        if (invoiceMapper.markIssuing(id) == 0) {
+            Invoice cur = mustGet(id);
+            if ("ISSUED".equals(cur.getStatus())) {
+                return cur;
+            }
+            throw new BizException("发票正在开具或状态不允许: " + cur.getStatus());
+        }
         inv.setStatus("ISSUING");
-        invoiceMapper.updateById(inv);
         TaxInvoiceGateway.IssueResult r = gateway.issue(inv, lines);
         if (r.isSuccess()) {
             inv.setStatus("ISSUED");
@@ -212,6 +235,10 @@ public class InvoiceService {
         Invoice orig = mustGet(id);
         if (!"ISSUED".equals(orig.getStatus())) {
             throw new BizException("只有已开具发票可以红冲");
+        }
+        // 原子把原票置为红冲中，防止并发重复红冲
+        if (invoiceMapper.markRedFlushing(id) == 0) {
+            throw new BizException("发票正在红冲或状态不允许: " + mustGet(id).getStatus());
         }
         Invoice red = new Invoice();
         red.setInvoiceNo(codeGenerator.next("INV"));
@@ -244,6 +271,8 @@ public class InvoiceService {
         } else {
             red.setStatus("FAILED");
             red.setErrorMsg(r.getErrorMsg());
+            // 红冲失败恢复原票状态
+            orig.setStatus("ISSUED");
         }
         invoiceMapper.updateById(red);
         invoiceMapper.updateById(orig);
@@ -283,6 +312,11 @@ public class InvoiceService {
         }
         String status = (String) body.get("status");
         if (status != null) {
+            if (!"ISSUED".equals(status)
+                    && !"FAILED".equals(status)
+                    && !"RED_FLUSHED".equals(status)) {
+                throw new BizException("非法回调状态: " + status);
+            }
             inv.setStatus(status);
             if ("ISSUED".equals(status)) {
                 inv.setIssuedTime(LocalDateTime.now());

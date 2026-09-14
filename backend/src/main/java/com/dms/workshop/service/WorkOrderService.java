@@ -29,6 +29,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -285,16 +286,25 @@ public class WorkOrderService {
     public WorkOrder approve(Long id, String operator) {
         WorkOrder o = mustGet(id);
         List<WorkOrderPart> lines = parts(id);
-        // 先整体校验，避免部分预留
-        StringBuilder shortage = new StringBuilder();
+        // 先按备件号聚合需求量再整体校验，避免同备件多行各自通过但总量不足
+        Map<String, Integer> required = new LinkedHashMap<>();
+        Map<String, String> names = new HashMap<>();
         for (WorkOrderPart p : lines) {
-            int avail = stockService.available(o.getDealerCode(), p.getPartNo());
-            if (avail < p.getQty()) {
-                shortage.append(p.getPartNo())
+            if (Boolean.TRUE.equals(p.getReservedFlag())) {
+                continue; // 已预留的不再重复校验
+            }
+            required.merge(p.getPartNo(), p.getQty(), Integer::sum);
+            names.put(p.getPartNo(), p.getName());
+        }
+        StringBuilder shortage = new StringBuilder();
+        for (Map.Entry<String, Integer> e : required.entrySet()) {
+            int avail = stockService.available(o.getDealerCode(), e.getKey());
+            if (avail < e.getValue()) {
+                shortage.append(e.getKey())
                         .append("(")
-                        .append(p.getName())
+                        .append(names.get(e.getKey()))
                         .append(")缺")
-                        .append(p.getQty() - avail)
+                        .append(e.getValue() - avail)
                         .append(" ");
             }
         }
@@ -358,9 +368,13 @@ public class WorkOrderService {
     public WorkOrder finish(Long id, String operator) {
         WorkOrder o = mustGet(id);
         for (WorkOrderPart p : parts(id)) {
-            if (Boolean.TRUE.equals(p.getReservedFlag())) {
+            if (Boolean.TRUE.equals(p.getReservedFlag())
+                    && !Boolean.TRUE.equals(p.getConsumedFlag())) {
                 stockService.consume(
                         o.getDealerCode(), p.getPartNo(), p.getQty(), "WO", o.getOrderNo());
+                p.setConsumedFlag(true);
+                p.setReservedFlag(false);
+                partLineMapper.updateById(p);
             }
         }
         releaseResources(o);
@@ -402,13 +416,49 @@ public class WorkOrderService {
         } else {
             transit(o, WorkOrderCalculator.QC_FAILED, operator, "质检不合格: " + qcRemark);
             o.setQcResult("FAILED");
-            // 返回返工状态
-            transit(o, WorkOrderCalculator.IN_REPAIR, operator, "返工");
+            // 返工时重新占用原技师与工位（finish 时已释放）；已被占用则在日志备注
+            String reworkRemark = reoccupyResources(o);
+            transit(o, WorkOrderCalculator.IN_REPAIR, operator,
+                    "返工" + (reworkRemark == null ? "" : "（" + reworkRemark + "）"));
         }
         o.setQcRemark(qcRemark);
         o.setQcTime(LocalDateTime.now());
+        o.setQcTime(LocalDateTime.now());
         orderMapper.updateById(o);
         return o;
+    }
+
+    /** 返工时重新占用原技师与工位；返回 null 表示成功，否则返回需重新派工的说明。 */
+    private String reoccupyResources(WorkOrder o) {
+        StringBuilder note = new StringBuilder();
+        if (o.getTechnicianCode() != null) {
+            Technician t =
+                    technicianMapper.selectOne(
+                            new QueryWrapper<Technician>().eq("code", o.getTechnicianCode()));
+            if (t != null && "IDLE".equals(t.getStatus())) {
+                t.setStatus("BUSY");
+                technicianMapper.updateById(t);
+            } else if (t != null && !"BUSY".equals(t.getStatus())) {
+                note.append("技师 ").append(o.getTechnicianCode()).append(" 已被占用");
+            }
+        }
+        if (o.getBayCode() != null) {
+            Bay b =
+                    bayMapper.selectOne(
+                            new QueryWrapper<Bay>()
+                                    .eq("dealer_code", o.getDealerCode())
+                                    .eq("code", o.getBayCode()));
+            if (b != null && "IDLE".equals(b.getStatus())) {
+                b.setStatus("BUSY");
+                bayMapper.updateById(b);
+            } else if (b != null && !"BUSY".equals(b.getStatus())) {
+                if (note.length() > 0) {
+                    note.append("；");
+                }
+                note.append("工位 ").append(o.getBayCode()).append(" 已被占用");
+            }
+        }
+        return note.length() == 0 ? null : note.append("，需重新派工").toString();
     }
 
     /**

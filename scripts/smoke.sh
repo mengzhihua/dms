@@ -101,6 +101,26 @@ test -n "$CLID"
 call POST "/workshop/claim/$CLID/approve" >/dev/null
 call POST "/workshop/claim/$CLID/pay" >/dev/null
 
+echo "== 10b qc fail rework does not double-consume stock"
+WO3=$(call POST /workshop/order "{\"vehicleId\":$VID,\"mileageIn\":13000,\"orderType\":\"REGULAR\",\"complaint\":\"刹车异响返工测试\",\"serviceType\":\"维修\"}")
+OID3=$(echo "$WO3"|jq -r .id); ONO3=$(echo "$WO3"|jq -r .orderNo)
+call POST "/workshop/order/$OID3/apply-guide/G002" >/dev/null
+call POST "/workshop/order/$OID3/diagnose" '{"diagnosis":"刹车片"}' >/dev/null
+call POST "/workshop/order/$OID3/quote" '{}' >/dev/null
+call POST "/workshop/order/$OID3/approve" '{}' >/dev/null
+call POST "/workshop/order/$OID3/dispatch" '{"technicianCode":"T001","bayCode":"B01"}' >/dev/null
+call POST "/workshop/order/$OID3/start" '{}' >/dev/null
+call POST "/workshop/order/$OID3/finish" '{}' >/dev/null
+OUT1=$(call GET "/parts/movement/page?size=500" | jq "[.records[]|select(.refNo==\"$ONO3\" and .type==\"OUT\")]|length")
+test "$OUT1" -gt 0
+WO3=$(call POST "/workshop/order/$OID3/qc" '{"pass":false,"remark":"返工"}')
+test "$(echo "$WO3"|jq -r .status)" = "IN_REPAIR"
+call POST "/workshop/order/$OID3/finish" '{}' >/dev/null
+OUT2=$(call GET "/parts/movement/page?size=500" | jq "[.records[]|select(.refNo==\"$ONO3\" and .type==\"OUT\")]|length")
+test "$OUT1" = "$OUT2"   # 返工后不得重复出库
+call POST "/workshop/order/$OID3/qc" '{"pass":true}' >/dev/null
+call POST "/workshop/order/$OID3/settle" '{}' >/dev/null
+
 echo "== 11 red-flush invoice"
 RED=$(call POST "/invoice/$IID/red-flush")
 test "$(echo "$RED"|jq -r .status)" = "ISSUED"

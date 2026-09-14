@@ -6,6 +6,7 @@ import com.dms.invoice.entity.Invoice;
 import com.dms.invoice.mapper.InvoiceMapper;
 import com.dms.invoice.service.InvoiceService;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -42,9 +43,16 @@ public class InvoiceController extends BaseCrudController<Invoice, InvoiceMapper
         return R.ok(service.preview(id));
     }
 
-    /** 税控服务商异步回调：POST /api/invoice/callback/MOCK 等。 */
+    /** 税控服务商异步回调：POST /api/invoice/callback/MOCK 等；配置 callback-token 后需带 X-Tax-Callback-Token 头。 */
     @PostMapping("/callback/{provider}")
-    public R<Invoice> callback(@PathVariable String provider, @RequestBody Map<String, Object> body) {
+    public R<Invoice> callback(
+            @PathVariable String provider,
+            @RequestBody Map<String, Object> body,
+            @RequestHeader(value = "X-Tax-Callback-Token", required = false) String token,
+            @Value("${dms.tax.callback-token:}") String expected) {
+        if (expected != null && !expected.isEmpty() && !expected.equals(token)) {
+            throw new com.dms.common.BizException("回调令牌校验失败");
+        }
         return R.ok(service.callback(provider, body));
     }
 }

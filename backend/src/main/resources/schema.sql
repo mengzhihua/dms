@@ -327,6 +327,7 @@ CREATE TABLE IF NOT EXISTS dms_work_order_part (
     amount DECIMAL(18,2),
     is_warranty BOOLEAN DEFAULT FALSE,
     reserved_flag BOOLEAN DEFAULT FALSE,
+    consumed_flag BOOLEAN DEFAULT FALSE,
     remark VARCHAR(255),
     created_at TIMESTAMP,
     updated_at TIMESTAMP
@@ -444,7 +445,7 @@ CREATE TABLE IF NOT EXISTS dms_invoice (
     tax_rate DECIMAL(5,4) DEFAULT 0.13,
     tax_amount DECIMAL(18,2),
     net_amount DECIMAL(18,2),
-    status VARCHAR(16),                      -- DRAFT/ISSUING/ISSUED/RED_FLUSHED/FAILED
+    status VARCHAR(16),                      -- DRAFT/ISSUING/ISSUED/RED_FLUSHING/RED_FLUSHED/FAILED
     tax_invoice_code VARCHAR(32),
     tax_invoice_number VARCHAR(32),
     check_code VARCHAR(64),
