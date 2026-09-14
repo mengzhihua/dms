@@ -70,6 +70,21 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 - 税收分类编码：工时（修理修配服务）`3040502000000000000`，备件 `1090511010000000000`。
 - `POST /api/invoice/{id}/issue` 幂等：已 ISSUED 直接返回原票。
 
+## OMS 备件补货对接
+
+经销商备件从 OMS 中心仓补货：DMS 作为 OMS 的一个渠道店铺（`shopCode=SHOP-DMS01`，OMS 侧 `data.sql` 已预置渠道 `DMS`、店铺与 `P0001~P0030` 备件 SKU/`WH-SH` 库存）。
+
+- 单据：`dms_replenish_order`，状态机 `DRAFT → PUSHED → SHIPPED → RECEIVED`，`DRAFT/PUSHED → CANCELLED`；`channelOrderNo = replenishNo`，OMS 按 `shopCode+channelOrderNo` 幂等，重复下单不会产生第二张 OMS 订单。
+- 下单：`POST /api/oms/replenish/draft {dealerCode, items:[{partNo,qty}]}` 或 `POST /api/oms/replenish/from-shortage?dealerCode=`（按缺货预警补到 2×minStock），再 `POST /api/oms/replenish/{id}/push` → OMS `POST /api/open/channel/orders`（收货人取经销商名称/电话/地址，SKU 直接使用备件号）。
+- 状态同步（双通道）：
+  - 拉：`POST /api/oms/replenish/{id}/sync`、`POST /api/oms/replenish/sync-all` → OMS `GET /api/open/channel/orders/{shopCode}/{channelOrderNo}`；
+  - 推：OMS 发货/签收/取消时回调 `POST /api/open/oms/orders/status`（`dms.oms.callback-key` 非空时校验 `X-Api-Key`）。
+- 入库：OMS `COMPLETED`（签收）时按实发数量 `shippedQty` 入库到经销商 `dms.oms.receive-location` 库位、批次号=OMS 单号；`SHIPPED→RECEIVED` 为条件更新，回推与轮询并发/重复也只入库一次。
+- 取消：`POST /api/oms/replenish/{id}/cancel` 仅 `DRAFT/PUSHED` 可取消（OMS 已发货不可取消）。
+- 库存参考：`GET /api/oms/replenish/oms-inventory?partNos=P0001,P0002` → OMS 渠道可售量。
+- 配置（`dms.oms.*`）：`DMS_OMS_MOCK`（默认 `true`，内存模拟 OMS，每次查询状态前进一步）、`DMS_OMS_URL`、`DMS_OMS_API_KEY`（OMS 的 `oms.open.api-key`）、`DMS_OMS_CALLBACK_KEY`、`shop-code`、`receive-location`、`timeout-ms`。
+- 本地联调：OMS `SERVER_PORT=8081 OMS_DMS_URL=http://localhost:8080 OMS_DMS_KEY=cb`，DMS `DMS_OMS_MOCK=false DMS_OMS_URL=http://localhost:8081 DMS_OMS_API_KEY=oms-open-key DMS_OMS_CALLBACK_KEY=cb`。
+
 ## 满意度与投诉
 
 - 答卷提交后计算加权总分（0-100）与 NPS 得分；**总分 < 60 或任一题 ≤ 3 分**自动生成投诉（总分<40 为 HIGH，否则 MEDIUM）。
@@ -95,7 +110,7 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 
 ## 数据表清单
 
-`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`。
+`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`；`dms_replenish_order`（OMS 备件补货）。
 
 ## API 概览（统一前缀 /api，返回 {code,msg,data}）
 
@@ -107,6 +122,7 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 - 工单：`POST /api/workshop/order`；`POST /api/workshop/order/{id}/labor|part`（DELETE 移除）；`POST /api/workshop/order/{id}/apply-guide/{guideCode}`；动作 `diagnose|quote|approve|dispatch|start|finish|qc|settle|deliver|close|cancel`；`GET /api/workshop/order/{id}`；索赔 `POST /api/workshop/claim/{id}/approve|reject|pay`
 - 满意度：`POST /api/survey/{id}/answer`；`GET /api/survey/stats`；`POST /api/survey/complaint/{id}/handle`
 - 发票：`POST /api/invoice`；`POST /api/invoice/{id}/issue|red-flush`；`GET /api/invoice/{id}/preview`；`POST /api/invoice/callback/{provider}`
+- OMS 补货：`POST /api/oms/replenish/draft|from-shortage|sync-all`；`POST /api/oms/replenish/{id}/push|sync|cancel`；`GET /api/oms/replenish/{id}/lines`、`/oms-inventory?partNos=`；OMS 回推 `POST /api/open/oms/orders/status`
 - 工作台：`GET /api/dashboard?dealerCode=`
 
 ## 前端

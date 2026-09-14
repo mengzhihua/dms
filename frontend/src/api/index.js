@@ -43,6 +43,19 @@ export const parts = {
   available: (params) => http.get('/parts/stock/available', { params })
 }
 
+export const oms = {
+  replenish: crud('/oms/replenish'),
+  draft: (data) => http.post('/oms/replenish/draft', data),
+  fromShortage: (dealerCode) =>
+    http.post('/oms/replenish/from-shortage', null, { params: { dealerCode } }),
+  push: (id) => http.post(`/oms/replenish/${id}/push`),
+  sync: (id) => http.post(`/oms/replenish/${id}/sync`),
+  syncAll: () => http.post('/oms/replenish/sync-all'),
+  cancel: (id, reason) => http.post(`/oms/replenish/${id}/cancel`, { reason }),
+  lines: (id) => http.get(`/oms/replenish/${id}/lines`),
+  omsInventory: (partNos) => http.get('/oms/replenish/oms-inventory', { params: { partNos } })
+}
+
 export const guide = {
   labor: crud('/guide/labor'),
   guide: crud('/guide/guide'),
