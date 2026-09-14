@@ -1,0 +1,54 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: dms
+  datasource:
+    url: jdbc:h2:file:./data/dms;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      continue-on-error: true
+  h2:
+    console:
+      enabled: true
+      path: /h2
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+logging:
+  level:
+    com.dms: info
+dms:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  tax:
+    provider: MOCK          # MOCK | HTTP
+    mock-fail-rate: 0       # MockTaxAdapter 模拟失败概率 0~1
+    endpoint: http://localhost:9999/tax
+    app-id: dms-app
+    app-secret: change-me
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: jdbc:mysql://localhost:3306/dms?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root

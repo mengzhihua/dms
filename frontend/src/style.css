@@ -1,0 +1,106 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  background: #f5f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.page {
+  padding: 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbar .el-input,
+.toolbar .el-select {
+  width: 210px;
+}
+
+.card {
+  padding: 16px;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.stat {
+  padding: 16px;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.stat .label {
+  color: #909399;
+  font-size: 13px;
+}
+
+.stat .value {
+  margin-top: 4px;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.map-card {
+  min-height: 320px;
+}
+
+.muted {
+  color: #909399;
+}
+
+.dispatch-summary,
+.order-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.order-summary strong {
+  color: #303133;
+}
+
+.load-check {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.load-check-title {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: #606266;
+  font-size: 12px;
+}
+
+.danger-text {
+  color: #f56c6c;
+}
+
+.detail-actions {
+  padding: 8px 0;
+  margin-bottom: 4px;
+}
