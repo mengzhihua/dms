@@ -8,8 +8,8 @@ import lombok.EqualsAndHashCode;
 
 /**
  * 备件补货单(DMS -> OMS 渠道订单)。
- * 状态:DRAFT(草稿) -> PUSHED(已下单 OMS) -> SHIPPED(OMS 已发货) -> RECEIVED(已入库) ;
- * DRAFT/PUSHED -> CANCELLED ; 下单失败保留 DRAFT 并记录 lastError。
+ * 状态:DRAFT(草稿) -> PUSHING(OMS 建单中) -> PUSHED(已下单 OMS) -> SHIPPED(OMS 已发货) -> RECEIVED(已入库) ;
+ * DRAFT/PUSHED -> CANCELLED ; PUSHING 不可取消/同步;下单失败回退 DRAFT 并记录 lastError。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

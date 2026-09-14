@@ -36,11 +36,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class ReplenishService {
     public static final String DRAFT = "DRAFT";
+    public static final String PUSHING = "PUSHING";
     public static final String PUSHED = "PUSHED";
     public static final String SHIPPED = "SHIPPED";
     public static final String RECEIVED = "RECEIVED";
     public static final String CANCELLED = "CANCELLED";
     private static final List<String> OPEN = Arrays.asList(PUSHED, SHIPPED);
+    /** OMS 状态先后次序,旧快照不能覆盖新快照的元数据 */
+    private static final List<String> OMS_ORDER = Arrays.asList(
+            "CREATED", "AUDITED", "ALLOCATED", "PUSHED", "SPLIT", "SHIPPED", "COMPLETED", "CANCELLED");
 
     private final ReplenishOrderMapper mapper;
     private final DealerMapper dealerMapper;
@@ -98,7 +102,11 @@ public class ReplenishService {
             }
             Map<String, Object> line = merged.get(partNo);
             if (line != null) {
-                line.put("qty", ((Number) line.get("qty")).intValue() + qty);
+                try {
+                    line.put("qty", Math.addExact(((Number) line.get("qty")).intValue(), qty));
+                } catch (ArithmeticException e) {
+                    throw new BizException("备件 " + partNo + " 合并后补货数量超出范围");
+                }
                 continue;
             }
             Part p = partMapper.selectOne(new QueryWrapper<Part>().eq("part_no", partNo));
@@ -150,11 +158,12 @@ public class ReplenishService {
     // ------------------------------------------------------------ 下单 OMS
 
     /**
-     * 下单 OMS。不在事务内调用远端:先 DRAFT->PUSHED 抢占,失败时回退 DRAFT 并记录 lastError(独立提交,不随异常回滚)。
+     * 下单 OMS。不在事务内调用远端:先 DRAFT->PUSHING 抢占(建单中,不可取消/同步),
+     * 建单成功 PUSHING->PUSHED,失败回退 DRAFT 并记录 lastError(独立提交,不随异常回滚)。
      */
     public ReplenishOrder push(Long id) {
         ReplenishOrder o = get(id);
-        if (!DRAFT.equals(o.getStatus()) || mapper.transit(id, DRAFT, PUSHED) != 1) {
+        if (!DRAFT.equals(o.getStatus()) || mapper.transit(id, DRAFT, PUSHING) != 1) {
             throw new BizException("仅草稿状态可下单 OMS(当前 " + o.getStatus() + ")");
         }
         Dealer dealer = dealer(o.getDealerCode());
@@ -185,12 +194,13 @@ public class ReplenishService {
             mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
                     .eq(ReplenishOrder::getId, id)
                     .set(ReplenishOrder::getLastError, trim(e.getMessage())));
-            mapper.transit(id, PUSHED, DRAFT);
+            mapper.transit(id, PUSHING, DRAFT);
             throw new BizException("下单 OMS 失败: " + e.getMessage());
         }
         mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
                 .eq(ReplenishOrder::getId, id)
                 .set(ReplenishOrder::getPushedAt, LocalDateTime.now()));
+        mapper.transit(id, PUSHING, PUSHED);
         o.setStatus(PUSHED);
         tx.executeWithoutResult(s -> applyOmsState(o, created));
         return mapper.selectById(id);
@@ -204,6 +214,9 @@ public class ReplenishService {
             o.setLastError(null);
             mapper.updateById(o);
             return o;
+        }
+        if (PUSHING.equals(o.getStatus())) {
+            throw new BizException("正在下单 OMS,请稍后重试取消");
         }
         if (!PUSHED.equals(o.getStatus())) {
             throw new BizException("已发货/已入库的补货单不能取消(当前 " + o.getStatus() + ")");
@@ -286,12 +299,17 @@ public class ReplenishService {
     /**
      * 把 OMS 订单快照应用到补货单。OMS 状态:CREATED/AUDITED/ALLOCATED/PUSHED/SPLIT -> 在途;
      * SHIPPED -> SHIPPED;COMPLETED -> RECEIVED(入库);CANCELLED -> CANCELLED。
-     * 元数据更新不携带 status,状态只经 transit 条件迁移,并发回推/轮询不会把已 RECEIVED 的单覆盖回 SHIPPED。
+     * 元数据更新不携带 status,状态只经 transit 条件迁移,并发回推/轮询不会把已 RECEIVED 的单覆盖回 SHIPPED;
+     * 元数据仅在本地单仍在途且快照不早于已记录的 OMS 状态时写入,旧快照不会覆盖新物流信息。
      */
     private void applyOmsState(ReplenishOrder o, Map<String, Object> remote) {
         String omsStatus = str(remote.get("status"));
+        int rank = OMS_ORDER.indexOf(omsStatus);
+        List<String> notNewer = rank < 0 ? OMS_ORDER : OMS_ORDER.subList(0, rank + 1);
         LambdaUpdateWrapper<ReplenishOrder> meta = new LambdaUpdateWrapper<ReplenishOrder>()
                 .eq(ReplenishOrder::getId, o.getId())
+                .in(ReplenishOrder::getStatus, OPEN)
+                .and(w -> w.isNull(ReplenishOrder::getOmsStatus).or().in(ReplenishOrder::getOmsStatus, notNewer))
                 .set(ReplenishOrder::getOmsStatus, omsStatus)
                 .set(ReplenishOrder::getSyncedAt, LocalDateTime.now())
                 .set(ReplenishOrder::getLastError, null);
