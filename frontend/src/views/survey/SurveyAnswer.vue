@@ -34,6 +34,7 @@ const answers = reactive({})
 const answered = computed(() => survey.value && survey.value.status === 'ANSWERED')
 
 async function load() {
+  Object.keys(answers).forEach((k) => delete answers[k])
   survey.value = await api.survey.get(surveyId.value)
   const tpl = (await api.template.list({ size: 50 })) || []
   const t = tpl.find((x) => x.code === survey.value.templateCode)
