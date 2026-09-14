@@ -40,7 +40,8 @@ export const menus = [
       { path: 'part', name: '备件主数据', component: () => import('../views/parts/Part.vue') },
       { path: 'stock', name: '库存', component: () => import('../views/parts/Stock.vue') },
       { path: 'movement', name: '出入库流水', component: () => import('../views/parts/Movement.vue') },
-      { path: 'shortage', name: '缺货预警', component: () => import('../views/parts/Shortage.vue') }
+      { path: 'shortage', name: '缺货预警', component: () => import('../views/parts/Shortage.vue') },
+      { path: 'replenish', name: 'OMS补货', component: () => import('../views/parts/Replenish.vue') }
     ]
   },
   {

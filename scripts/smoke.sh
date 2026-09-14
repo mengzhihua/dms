@@ -141,7 +141,19 @@ SO=$(call POST "/network/sales-order/$SOID/deliver"); test "$(echo "$SO"|jq -r .
 VNEW=$(call GET "/customer/vehicle/page?vin=$(echo "$SO"|jq -r .vin)")
 test "$(echo "$VNEW"|jq '.records|length')" = "1"
 
-echo "== 14 dashboard"
+echo "== 14 OMS replenish (mock OMS: PUSHED -> SHIPPED -> COMPLETED)"
+AV0=$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0002")
+RP=$(call POST /oms/replenish/draft "{\"dealerCode\":\"$DC\",\"items\":[{\"partNo\":\"P0002\",\"qty\":6}]}")
+RPID=$(echo "$RP"|jq -r .id); test "$(echo "$RP"|jq -r .status)" = "DRAFT"
+RP=$(call POST "/oms/replenish/$RPID/push"); test "$(echo "$RP"|jq -r .status)" = "PUSHED"; test "$(echo "$RP"|jq -r .omsOrderNo)" != "null"
+RP=$(call POST "/oms/replenish/$RPID/sync"); test "$(echo "$RP"|jq -r .status)" = "SHIPPED"
+RP=$(call POST "/oms/replenish/$RPID/sync"); test "$(echo "$RP"|jq -r .status)" = "RECEIVED"
+test "$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0002")" = "$((AV0+6))"
+call POST "/oms/replenish/$RPID/sync" >/dev/null
+test "$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0002")" = "$((AV0+6))"
+test "$(call GET "/oms/replenish/oms-inventory?partNos=P0001,P0002"|jq length)" = "2"
+
+echo "== 15 dashboard"
 call GET "/dashboard?dealerCode=$DC" | jq -c '{workOrderStatusCounts,todayCheckIns,monthRevenue,openComplaints,dealerRanking}'
 
 echo "SMOKE OK"

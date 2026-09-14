@@ -486,3 +486,28 @@ CREATE TABLE IF NOT EXISTS dms_tax_config (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+-- ============ oms 备件补货(DMS -> OMS 渠道订单) ============
+CREATE TABLE IF NOT EXISTS dms_replenish_order (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    replenish_no VARCHAR(40) NOT NULL UNIQUE,
+    dealer_code VARCHAR(32) NOT NULL,
+    shop_code VARCHAR(32),
+    status VARCHAR(16) NOT NULL,             -- DRAFT/PUSHED/SHIPPED/RECEIVED/CANCELLED
+    source VARCHAR(16),                      -- MANUAL/SHORTAGE
+    items VARCHAR(4000),                     -- JSON [{partNo,name,qty,price}]
+    oms_order_no VARCHAR(40),
+    oms_status VARCHAR(16),
+    warehouse_code VARCHAR(32),
+    carrier_code VARCHAR(32),
+    tracking_no VARCHAR(64),
+    location VARCHAR(32),
+    last_error VARCHAR(500),
+    pushed_at TIMESTAMP,
+    shipped_at TIMESTAMP,
+    received_at TIMESTAMP,
+    synced_at TIMESTAMP,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);

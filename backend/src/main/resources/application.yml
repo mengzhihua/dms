@@ -43,6 +43,14 @@ dms:
     app-id: dms-app
     app-secret: change-me
     callback-token: ""        # 非空时回调需携带 X-Tax-Callback-Token 头
+  oms:
+    mock: ${DMS_OMS_MOCK:true}          # true: 内存模拟 OMS(查询一次状态前进一步);false: HTTP 调用 OMS
+    base-url: ${DMS_OMS_URL:}           # 如 http://localhost:8081
+    api-key: ${DMS_OMS_API_KEY:}        # OMS 的 oms.open.api-key
+    shop-code: SHOP-DMS01               # OMS 中代表经销商备件渠道的店铺
+    receive-location: RCV-01            # 补货入库默认库位
+    timeout-ms: 5000
+    callback-key: ${DMS_OMS_CALLBACK_KEY:}  # 非空时 OMS 回推 /api/open/oms/orders/status 需携带同值 X-Api-Key
 ---
 spring:
   config:
