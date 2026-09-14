@@ -9,19 +9,19 @@
         <p>调研 {{ survey.surveyNo }} <el-tag size="small">{{ survey.status }}</el-tag></p>
         <div v-for="q in questions" :key="q.id" class="question">
           <p><b>{{ q.seq }}. {{ q.text }}</b></p>
-          <el-slider v-if="q.type === 'SCORE'" v-model="answers[q.id]" :min="1" :max="10" show-input style="max-width: 480px" />
-          <el-slider v-else-if="q.type === 'NPS'" v-model="answers[q.id]" :min="0" :max="10" show-input style="max-width: 480px" />
-          <el-input v-else v-model="answers[q.id]" type="textarea" style="max-width: 480px" />
+          <el-slider v-if="q.type === 'SCORE'" v-model="answers[q.id]" :min="1" :max="10" show-input :disabled="answered" style="max-width: 480px" />
+          <el-slider v-else-if="q.type === 'NPS'" v-model="answers[q.id]" :min="0" :max="10" show-input :disabled="answered" style="max-width: 480px" />
+          <el-input v-else v-model="answers[q.id]" type="textarea" :disabled="answered" style="max-width: 480px" />
         </div>
-        <el-button type="primary" :disabled="survey.status === 'ANSWERED'" @click="submit">提交答卷</el-button>
-        <p v-if="survey.status === 'ANSWERED'" class="muted">已作答：总分 {{ survey.totalScore }}，NPS {{ survey.npsScore }}</p>
+        <el-button type="primary" :disabled="answered" @click="submit">提交答卷</el-button>
+        <p v-if="answered" class="muted">已作答：总分 {{ survey.totalScore }}，NPS {{ survey.npsScore }}</p>
       </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { survey as api } from '../../api'
@@ -31,6 +31,7 @@ const surveyId = ref(route.query.id ? String(route.query.id) : '')
 const survey = ref(null)
 const questions = ref([])
 const answers = reactive({})
+const answered = computed(() => survey.value && survey.value.status === 'ANSWERED')
 
 async function load() {
   survey.value = await api.survey.get(surveyId.value)
@@ -39,6 +40,12 @@ async function load() {
   if (t) {
     questions.value = (await api.question.list({ size: 100, templateId: t.id })) || []
     questions.value.sort((a, b) => (a.seq || 0) - (b.seq || 0))
+  }
+  if (survey.value.status === 'ANSWERED') {
+    const saved = (await api.surveyAnswers(surveyId.value)) || []
+    saved.forEach((a) => {
+      answers[a.questionId] = a.score != null ? Number(a.score) : a.text
+    })
   }
 }
 

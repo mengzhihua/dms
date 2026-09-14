@@ -72,6 +72,7 @@ export const survey = {
   template: crud('/survey/template'),
   question: crud('/survey/question'),
   survey: crud('/survey/record'),
+  surveyAnswers: (id) => http.get(`/survey/record/${id}/answers`),
   answer: crud('/survey/answer'),
   complaint: crud('/survey/complaint'),
   submitAnswer: (id, answers) => http.post(`/survey/${id}/answer`, { answers }),
