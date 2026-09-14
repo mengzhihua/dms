@@ -2,6 +2,7 @@ package com.dms.workshop.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.dms.auth.DataScope;
 import com.dms.common.R;
 import com.dms.workshop.entity.WorkOrder;
 import com.dms.workshop.entity.WorkOrderLabor;
@@ -28,6 +29,7 @@ public class WorkOrderController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String dealerCode,
             @RequestParam(required = false) String plateNo) {
+        dealerCode = DataScope.effectiveDealer(dealerCode);
         QueryWrapper<WorkOrder> q = new QueryWrapper<>();
         if (keyword != null && !keyword.isEmpty()) {
             q.and(w -> w.or().like("order_no", keyword).or().like("vin", keyword));

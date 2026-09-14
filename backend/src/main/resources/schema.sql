@@ -511,3 +511,17 @@ CREATE TABLE IF NOT EXISTS dms_replenish_order (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+-- ============ 系统用户（登录/角色/数据范围） ============
+CREATE TABLE IF NOT EXISTS sys_user (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(100) NOT NULL,
+    real_name VARCHAR(64),
+    role VARCHAR(24) NOT NULL,               -- ADMIN/OEM/DEALER_MANAGER/ADVISOR/TECHNICIAN/FINANCE
+    dealer_code VARCHAR(32),
+    enabled BOOLEAN DEFAULT TRUE,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);

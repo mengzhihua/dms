@@ -34,6 +34,9 @@ logging:
   level:
     com.dms: info
 dms:
+  auth:
+    jwt-secret: dev-secret-key-for-dms-jwt-signing-please-change-in-production
+    expire-hours: 12
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   tax:

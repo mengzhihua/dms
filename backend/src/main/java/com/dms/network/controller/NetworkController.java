@@ -1,5 +1,6 @@
 package com.dms.network.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.R;
 import com.dms.network.entity.DealerAssessment;
 import com.dms.network.service.NetworkService;
@@ -16,12 +17,12 @@ public class NetworkController {
     @GetMapping("/target/achievement")
     public R<Map<String, Object>> achievement(
             @RequestParam String dealerCode, @RequestParam String yearMonth) {
-        return R.ok(service.achievement(dealerCode, yearMonth));
+        return R.ok(service.achievement(DataScope.effectiveDealer(dealerCode), yearMonth));
     }
 
     @PostMapping("/assessment/generate")
     public R<DealerAssessment> generate(
             @RequestParam String dealerCode, @RequestParam String yearMonth) {
-        return R.ok(service.generateAssessment(dealerCode, yearMonth));
+        return R.ok(service.generateAssessment(DataScope.effectiveDealer(dealerCode), yearMonth));
     }
 }

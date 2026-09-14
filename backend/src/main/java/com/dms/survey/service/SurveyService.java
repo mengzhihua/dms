@@ -1,6 +1,7 @@
 package com.dms.survey.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.survey.entity.*;
@@ -54,6 +55,7 @@ public class SurveyService {
         if (s == null) {
             throw new BizException("调研不存在");
         }
+        DataScope.check(s.getDealerCode());
         if ("ANSWERED".equals(s.getStatus())) {
             throw new BizException("该调研已作答");
         }
@@ -114,6 +116,7 @@ public class SurveyService {
 
     /** 统计：份数、平均分、NPS、分数分布。 */
     public Map<String, Object> stats(String dealerCode, String from, String to) {
+        dealerCode = DataScope.effectiveDealer(dealerCode);
         QueryWrapper<Survey> q =
                 new QueryWrapper<Survey>().eq("status", "ANSWERED");
         if (dealerCode != null && !dealerCode.isEmpty()) {
@@ -166,6 +169,7 @@ public class SurveyService {
         if (c == null) {
             throw new BizException("投诉不存在");
         }
+        DataScope.check(c.getDealerCode());
         c.setStatus(status);
         c.setHandler(handler);
         c.setResolution(resolution);

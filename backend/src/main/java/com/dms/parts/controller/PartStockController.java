@@ -1,5 +1,6 @@
 package com.dms.parts.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.R;
 import com.dms.parts.entity.PartStock;
@@ -25,9 +26,10 @@ public class PartStockController extends BaseCrudController<PartStock, PartStock
 
     @PostMapping("/inbound")
     public R<PartStock> inbound(@RequestBody Map<String, Object> body) {
+        String dealerCode = DataScope.effectiveDealer((String) body.get("dealerCode"));
         return R.ok(
                 service.inbound(
-                        (String) body.get("dealerCode"),
+                        dealerCode,
                         (String) body.get("partNo"),
                         (String) body.get("location"),
                         (String) body.get("batchNo"),
@@ -36,11 +38,22 @@ public class PartStockController extends BaseCrudController<PartStock, PartStock
 
     @GetMapping("/shortage")
     public R<List<Map<String, Object>>> shortage() {
-        return R.ok(service.shortage());
+        String dc = DataScope.effectiveDealer(null);
+        List<Map<String, Object>> rows = service.shortage();
+        if (dc == null) {
+            return R.ok(rows);
+        }
+        List<Map<String, Object>> filtered = new java.util.ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            if (dc.equals(row.get("dealerCode"))) {
+                filtered.add(row);
+            }
+        }
+        return R.ok(filtered);
     }
 
     @GetMapping("/available")
     public R<Integer> available(@RequestParam String dealerCode, @RequestParam String partNo) {
-        return R.ok(service.available(dealerCode, partNo));
+        return R.ok(service.available(DataScope.effectiveDealer(dealerCode), partNo));
     }
 }

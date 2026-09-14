@@ -1,6 +1,7 @@
 package com.dms.workshop.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.customer.entity.Vehicle;
@@ -64,6 +65,7 @@ public class WorkOrderService {
         if (o == null) {
             throw new BizException("工单不存在: " + id);
         }
+        DataScope.check(o.getDealerCode());
         return o;
     }
 
@@ -144,6 +146,7 @@ public class WorkOrderService {
         if (o.getDealerCode() == null) {
             throw new BizException("dealerCode 必填");
         }
+        DataScope.check(o.getDealerCode());
         if (o.getOrderType() == null) {
             o.setOrderType("REGULAR");
         }

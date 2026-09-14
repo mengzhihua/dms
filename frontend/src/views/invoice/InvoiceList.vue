@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StatusTag from '../../components/StatusTag.vue'
@@ -73,11 +73,11 @@ const previewText = ref('')
 const createForm = ref({})
 const query = reactive({ current: 1, size: 20, keyword: '' })
 const route = useRoute()
-const focusId = route.query.id
 
 async function load() {
   loading.value = true
   try {
+    const focusId = route.query.id
     if (focusId) {
       const inv = await invoice.invoice.get(focusId)
       rows.value = inv ? [inv] : []
@@ -128,6 +128,7 @@ async function preview(row) {
 }
 
 onMounted(load)
+watch(() => route.query.id, load)
 window.addEventListener('dealer-change', load)
 </script>
 

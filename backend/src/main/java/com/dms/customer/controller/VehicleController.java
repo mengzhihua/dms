@@ -1,6 +1,7 @@
 package com.dms.customer.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.R;
 import com.dms.customer.entity.Vehicle;
@@ -35,6 +36,12 @@ public class VehicleController extends BaseCrudController<Vehicle, VehicleMapper
 
     @GetMapping("/vin/{vin}/history")
     public R<List<WorkOrder>> history(@PathVariable String vin) {
+        Vehicle veh =
+                vehicleMapper.selectOne(
+                        new QueryWrapper<Vehicle>().eq("vin", vin).last("LIMIT 1"));
+        if (veh != null) {
+            DataScope.check(veh.getDealerCode());
+        }
         return R.ok(
                 workOrderMapper.selectList(
                         new QueryWrapper<WorkOrder>()
@@ -48,6 +55,9 @@ public class VehicleController extends BaseCrudController<Vehicle, VehicleMapper
             @PathVariable Long id, @RequestParam(required = false) Integer mileage) {
         Vehicle v = vehicleMapper.selectById(id);
         Map<String, Object> m = new LinkedHashMap<>();
+        if (v != null) {
+            DataScope.check(v.getDealerCode());
+        }
         if (v == null) {
             m.put("inWarranty", false);
             m.put("reason", "车辆不存在");

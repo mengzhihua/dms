@@ -1,5 +1,6 @@
 package com.dms.oms.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.R;
 import com.dms.oms.entity.ReplenishOrder;
@@ -30,7 +31,7 @@ public class ReplenishController extends BaseCrudController<ReplenishOrder, Repl
     public R<ReplenishOrder> draft(@RequestBody Map<String, Object> body) {
         return R.ok(
                 service.create(
-                        (String) body.get("dealerCode"),
+                        DataScope.effectiveDealer((String) body.get("dealerCode")),
                         (List<Map<String, Object>>) body.get("items"),
                         (String) body.get("source"),
                         (String) body.get("remark")));
@@ -38,16 +39,24 @@ public class ReplenishController extends BaseCrudController<ReplenishOrder, Repl
 
     @PostMapping("/from-shortage")
     public R<ReplenishOrder> fromShortage(@RequestParam String dealerCode) {
-        return R.ok(service.createFromShortage(dealerCode));
+        return R.ok(service.createFromShortage(DataScope.effectiveDealer(dealerCode)));
+    }
+
+    private ReplenishOrder scopedGet(Long id) {
+        ReplenishOrder o = service.get(id);
+        DataScope.check(o == null ? null : o.getDealerCode());
+        return o;
     }
 
     @PostMapping("/{id}/push")
     public R<ReplenishOrder> push(@PathVariable Long id) {
+        scopedGet(id);
         return R.ok(service.push(id));
     }
 
     @PostMapping("/{id}/sync")
     public R<ReplenishOrder> sync(@PathVariable Long id) {
+        scopedGet(id);
         return R.ok(service.sync(id));
     }
 
@@ -58,12 +67,13 @@ public class ReplenishController extends BaseCrudController<ReplenishOrder, Repl
 
     @PostMapping("/{id}/cancel")
     public R<ReplenishOrder> cancel(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+        scopedGet(id);
         return R.ok(service.cancel(id, body == null ? null : (String) body.get("reason")));
     }
 
     @GetMapping("/{id}/lines")
     public R<List<Map<String, Object>>> lines(@PathVariable Long id) {
-        return R.ok(service.lines(service.get(id)));
+        return R.ok(service.lines(scopedGet(id)));
     }
 
     /** 查询 OMS 中心仓可售库存,partNos 逗号分隔 */
