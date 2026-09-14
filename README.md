@@ -1,5 +1,114 @@
-# DMS 经销商管理系统
+# DMS 经销商管理系统 (Dealer Management System)
 
-汽车行业 DMS（Dealer Management System）：经销商/直营管理、车辆维修指导、维修工单全流程、满意度调研、税务发票对接。
+面向汽车 4S 店/经销商网络的一体化管理后台，覆盖 **整车销售 → 预约 → 维修工单 → 备件库存 → 结算开票 → 满意度回访 → 经销商考核** 全流程。架构与代码风格与同厂 TMS 项目保持一致：Spring Boot 单体后端 + Vue3 前端 + H2/MySQL。
 
-技术栈：Java 8 + Spring Boot 2.7 + MyBatis-Plus / Vue 3 + Vite + Element Plus。
+## 功能范围
+
+| 模块 | 功能 |
+| --- | --- |
+| 网络管理 | 经销商/直营店（4S 流程）、月度目标与达成、经销商考核（自动评分）、技师、工位、整车库存、整车销售订单（新建→分配→开票→交付） |
+| 客户车辆 | 客户档案、车型（保修月/里程、保养间隔）、车辆档案、VIN 维修历史、保修校验 |
+| 备件管理 | 备件主数据、多库位多批次库存、出入库/预留/释放流水、缺货预警 |
+| 维修指导 | 工时项目、维修指导库（故障码+症状+步骤）、技术通报 TSB、智能推荐（DTC/车型/症状打分）、在线估价 |
+| 维修工单 | 预约、工单全流程状态机、工时/备件行、一键带入指导、派工、质检、结算、保修索赔、取消释放预留 |
+| 满意度 | 调研模板（SCORE/NPS/TEXT）、答卷评分、NPS 统计、低分自动投诉、投诉处理 |
+| 发票管理 | 发票申请、开具（幂等）、红冲、报文预览、税控回调、MOCK/HTTP 双通道适配 |
+| 工作台 | 状态分布、当日接车、当月产值、技师利用率、缺货数、NPS、投诉、经销商产值排名 |
+
+## 目录结构
+
+```
+backend/   Spring Boot 后端（com.dms，按业务模块分包：network/customer/parts/guide/workshop/survey/invoice/dashboard/common）
+frontend/  Vue3 + Vite + Element Plus 前端
+scripts/   smoke.sh 全链路冒烟脚本
+```
+
+## 快速开始
+
+- 后端：JDK 8+（可用更高版本编译，source/target=1.8）+ Maven 3.6+
+
+  ```bash
+  cd backend && mvn spring-boot:run   # H2 文件库 ./data/dms，端口 8080
+  cd backend && mvn test              # 单元测试
+  # MySQL：mvn spring-boot:run -Dspring-boot.run.profiles=mysql
+  ```
+
+- 前端：Node 18+
+
+  ```bash
+  cd frontend && npm install && npm run dev   # 端口 5173，/api 代理到 8080
+  ```
+
+- 冒烟：`bash scripts/smoke.sh`（后端启动后执行，覆盖工单全流程+发票+调研+销售流程，输出 SMOKE OK）
+
+## 工单状态机
+
+```
+DRAFT → CHECKED_IN(接车/环检) → DIAGNOSED(诊断，可一键带入维修指导) → QUOTED(报价)
+      → APPROVED(客户确认，预留备件，不足报错列缺口) → DISPATCHED(派工，技师/工位占用)
+      → IN_REPAIR(开工) → QC_PENDING(完工，消耗备件释放资源) → QC_PASSED → SETTLED(结算/生成索赔与发票草稿)
+      → DELIVERED(交车，更新里程并自动创建调研) → CLOSED
+QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释放预留)
+```
+
+非法流转一律返回 400（`BizException`）。
+
+## 金额与税
+
+- 金额均为 `BigDecimal` scale 2，HALF_UP。
+- 报价/结算：`总额 = 工时 + 备件`；保修项计入 `warrantyAmount`（厂家承担，不向客户收）；`customerPayable = 总额 - 保修 - 优惠`；`税额 = customerPayable / (1 + 0.13) × 0.13`。
+- 保修金额 > 0 结算时自动生成 `WarrantyClaim`（SUBMITTED→APPROVED→PAID / REJECTED）。
+
+## 发票对接
+
+- 接口 `TaxInvoiceGateway { issue / query / redFlush }`，默认 `MockTaxAdapter`（生成 12 位发票代码 + 8 位发票号码 + 20 位校验码；`dms.tax.mock-fail-rate` 配置模拟失败率，默认 0）。
+- `HttpTaxAdapter` 为真实税控对接骨架：`POST {dms.tax.endpoint}/issue|/query|/red-flush`，头 `X-App-Id`/`X-App-Secret`，响应 JSON `{success, code, number, checkCode, pdfUrl, providerRef, errorMsg}`。
+- 配置：`dms.tax.provider=MOCK|HTTP`；`dms.tax.endpoint/app-id/app-secret`。
+- 红冲：`POST /api/invoice/{id}/red-flush` 生成负数红字发票并把原票置为 `RED_FLUSHED`。
+- 发票状态机：`DRAFT → ISSUING → ISSUED → RED_FLUSHING → RED_FLUSHED`（失败落 FAILED，红冲失败回退 ISSUED）；开具/红冲均为原子状态抢占，防并发重复。
+- 异步回写：`POST /api/invoice/callback/{provider}`（按 providerRef 或发票号码定位；仅接受 ISSUED/FAILED/RED_FLUSHED；`dms.tax.callback-token` 非空时需携带 `X-Tax-Callback-Token` 头）。
+- 税收分类编码：工时（修理修配服务）`3040502000000000000`，备件 `1090511010000000000`。
+- `POST /api/invoice/{id}/issue` 幂等：已 ISSUED 直接返回原票。
+
+## 满意度与投诉
+
+- 答卷提交后计算加权总分（0-100）与 NPS 得分；**总分 < 60 或任一题 ≤ 3 分**自动生成投诉（总分<40 为 HIGH，否则 MEDIUM）。
+- NPS = %推荐者(9-10) − %贬损者(0-6)；`/api/survey/stats` 返回份数、均分、NPS、分数段分布。
+- 交车（DELIVERED）自动创建 SERVICE 类型调研（PENDING，SMS 渠道）。
+
+## 经销商考核公式
+
+`POST /api/network/assessment/generate?dealerCode=&yearMonth=`：
+
+```
+总分 = 销售达成率(封顶100)×30% + 工单达成率(封顶100)×30%
+     + 当月已答卷均分(0-100，无答卷按80基准)×30%
+     + (100 - 未关闭投诉数×10，最低0)×10%
+等级: ≥90 A / ≥80 B / ≥70 C / ≥60 D / 其余 E
+```
+
+## 库存模型（对标说明）
+
+备件库存借鉴 **富勒 WMS 与 SAP EWM** 的思路：库位（location）+ 批次（batchNo）+ 预留（reservedQty）三维度；预留按批次号 FIFO；所有扣减用带条件的原子 UPDATE（`WHERE qty - reserved_qty >= ?`）保证并发安全；出入库全部落 `StockMovement` 流水。整体流程对标主流汽车 DMS 的 4S 流程（销售-售后-配件-满意度闭环）。
+
+单号（工单 WO/销售 SO/发票 INV/索赔 WC/调研 SV/投诉 CP）由 `seq_no` 表 `UPDATE ... SET seq_value=seq_value+1` 原子自增生成，并发安全。
+
+## 数据表清单
+
+`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`。
+
+## API 概览（统一前缀 /api，返回 {code,msg,data}）
+
+- 主数据：`/{模块}/{资源}/page|list|/{id}` GET/POST/PUT/DELETE，如 `/api/network/dealer/page?page=1&size=20&keyword=`
+- 网络：`GET /api/network/target/achievement?dealerCode&yearMonth`；`POST /api/network/assessment/generate`；销售订单 `POST /api/network/sales-order/{id}/allocate|invoice|deliver|cancel`
+- 车辆：`GET /api/customer/vehicle/vin/{vin}/history`；`GET /api/customer/vehicle/{id}/warranty-check?mileage=`
+- 备件：`POST /api/parts/stock/inbound`；`GET /api/parts/stock/shortage`；`GET /api/parts/stock/available`
+- 指导：`POST /api/guide/recommend` `{modelCode,dtcCodes[],symptom,dealerCode}`；`GET /api/guide/estimate?guideCode&dealerCode`
+- 工单：`POST /api/workshop/order`；`POST /api/workshop/order/{id}/labor|part`（DELETE 移除）；`POST /api/workshop/order/{id}/apply-guide/{guideCode}`；动作 `diagnose|quote|approve|dispatch|start|finish|qc|settle|deliver|close|cancel`；`GET /api/workshop/order/{id}`；索赔 `POST /api/workshop/claim/{id}/approve|reject|pay`
+- 满意度：`POST /api/survey/{id}/answer`；`GET /api/survey/stats`；`POST /api/survey/complaint/{id}/handle`
+- 发票：`POST /api/invoice`；`POST /api/invoice/{id}/issue|red-flush`；`GET /api/invoice/{id}/preview`；`POST /api/invoice/callback/{provider}`
+- 工作台：`GET /api/dashboard?dealerCode=`
+
+## 前端
+
+左侧菜单按业务分组；头部有经销商选择器（持久化 localStorage，各页面默认按所选经销商过滤）。自定义页面：工单详情（步骤条+工时/备件/日志 Tab+状态机动作按钮）、智能推荐、答卷、满意度统计、发票开具/红冲/预览、工作台卡片与排名。
