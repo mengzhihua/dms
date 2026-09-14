@@ -423,7 +423,6 @@ public class WorkOrderService {
         }
         o.setQcRemark(qcRemark);
         o.setQcTime(LocalDateTime.now());
-        o.setQcTime(LocalDateTime.now());
         orderMapper.updateById(o);
         return o;
     }
@@ -438,7 +437,7 @@ public class WorkOrderService {
             if (t != null && "IDLE".equals(t.getStatus())) {
                 t.setStatus("BUSY");
                 technicianMapper.updateById(t);
-            } else if (t != null && !"BUSY".equals(t.getStatus())) {
+            } else if (t != null) {
                 note.append("技师 ").append(o.getTechnicianCode()).append(" 已被占用");
             }
         }
@@ -451,7 +450,7 @@ public class WorkOrderService {
             if (b != null && "IDLE".equals(b.getStatus())) {
                 b.setStatus("BUSY");
                 bayMapper.updateById(b);
-            } else if (b != null && !"BUSY".equals(b.getStatus())) {
+            } else if (b != null) {
                 if (note.length() > 0) {
                     note.append("；");
                 }
