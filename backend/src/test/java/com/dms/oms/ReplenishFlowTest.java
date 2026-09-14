@@ -101,6 +101,29 @@ class ReplenishFlowTest {
     }
 
     @Test
+    void duplicatePartLinesMergedAndReceivedOnce() {
+        int before = stockService.available("D001", "P0005");
+        ReplenishOrder d = service.create("D001", Arrays.asList(item("P0005", 2), item("P0005", 3)), null, null);
+        List<Map<String, Object>> lines = service.lines(d);
+        assertEquals(1, lines.size());
+        assertEquals(5, lines.get(0).get("qty"));
+
+        ReplenishOrder o = service.push(d.getId());
+        Map<String, Object> evt = new LinkedHashMap<>();
+        evt.put("channelOrderNo", o.getReplenishNo());
+        evt.put("status", "COMPLETED");
+        Map<String, Object> l1 = new LinkedHashMap<>();
+        l1.put("sku", "P0005");
+        l1.put("shippedQty", 2);
+        Map<String, Object> l2 = new LinkedHashMap<>();
+        l2.put("sku", "P0005");
+        l2.put("shippedQty", 3);
+        evt.put("items", Arrays.asList(l1, l2));
+        assertEquals(ReplenishService.RECEIVED, service.onOmsEvent(evt).getStatus());
+        assertEquals(before + 5, stockService.available("D001", "P0005"));
+    }
+
+    @Test
     void shortageGeneratesDraftAndOmsInventoryQuery() {
         List<Map<String, Object>> inv = service.omsInventory(Arrays.asList("P0001", "P0002"));
         assertEquals(2, inv.size());

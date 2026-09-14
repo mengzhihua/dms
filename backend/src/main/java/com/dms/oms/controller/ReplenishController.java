@@ -1,6 +1,7 @@
 package com.dms.oms.controller;
 
 import com.dms.common.BaseCrudController;
+import com.dms.common.BizException;
 import com.dms.common.R;
 import com.dms.oms.entity.ReplenishOrder;
 import com.dms.oms.mapper.ReplenishOrderMapper;
@@ -22,6 +23,22 @@ public class ReplenishController extends BaseCrudController<ReplenishOrder, Repl
 
     protected String[] keywordColumns() {
         return new String[] {"replenish_no", "dealer_code", "oms_order_no", "tracking_no"};
+    }
+
+    /** 补货单状态/库存只能经业务接口变更,禁用通用增删改 */
+    @Override
+    public R<ReplenishOrder> create(ReplenishOrder entity) {
+        throw new BizException("请使用 /draft 创建补货单");
+    }
+
+    @Override
+    public R<ReplenishOrder> update(Long id, ReplenishOrder entity) {
+        throw new BizException("补货单不支持直接修改");
+    }
+
+    @Override
+    public R<Void> delete(Long id) {
+        throw new BizException("补货单不支持删除,请使用取消");
     }
 
     /** body: {dealerCode, items:[{partNo,qty}], remark} */

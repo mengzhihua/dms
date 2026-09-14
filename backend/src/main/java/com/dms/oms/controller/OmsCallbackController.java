@@ -8,7 +8,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
-/** OMS -> DMS 状态回推入口;dms.oms.callback-key 非空时要求 X-Api-Key 一致。 */
+/** OMS -> DMS 状态回推入口;必须配置 dms.oms.callback-key 且 X-Api-Key 一致,未配置时拒绝所有回推。 */
 @RestController
 @RequestMapping("/api/open/oms")
 public class OmsCallbackController {
@@ -26,7 +26,10 @@ public class OmsCallbackController {
     public R<ReplenishOrder> status(
             @RequestHeader(value = "X-Api-Key", required = false) String key,
             @RequestBody Map<String, Object> payload) {
-        if (callbackKey != null && !callbackKey.isEmpty() && !callbackKey.equals(key)) {
+        if (callbackKey == null || callbackKey.isEmpty()) {
+            throw new BizException("未配置 dms.oms.callback-key,拒绝 OMS 回推");
+        }
+        if (!callbackKey.equals(key)) {
             throw new BizException("X-Api-Key 无效");
         }
         ReplenishOrder o = service.onOmsEvent(payload);
