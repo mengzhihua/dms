@@ -156,4 +156,6 @@ async function remove(row) {
 }
 
 onMounted(load)
+
+defineExpose({ load })
 </script>

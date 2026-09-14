@@ -83,7 +83,7 @@ const lineDialog = ref(false)
 const detailLines = ref([])
 
 const statusText = { DRAFT: '草稿', PUSHING: '下单中', PUSHED: '已下单', SHIPPED: '已发货', RECEIVED: '已入库', CANCELLED: '已取消' }
-const tagType = (s) => ({ DRAFT: 'info', PUSHING: 'info', PUSHED: '', SHIPPED: 'warning', RECEIVED: 'success', CANCELLED: 'danger' })[s] || ''
+const tagType = (s) => ({ DRAFT: 'info', PUSHING: 'info', PUSHED: 'primary', SHIPPED: 'warning', RECEIVED: 'success', CANCELLED: 'danger' })[s] || 'info'
 
 async function load() {
   loading.value = true
