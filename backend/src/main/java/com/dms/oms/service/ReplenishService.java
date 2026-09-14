@@ -1,6 +1,7 @@
 package com.dms.oms.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.network.entity.Dealer;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 备件补货:DMS 作为 OMS 的渠道(shopCode=dms.oms.shop-code,channelOrderNo=replenishNo)。
@@ -47,6 +49,7 @@ public class ReplenishService {
     private final OmsClient oms;
     private final CodeGenerator codes;
     private final ObjectMapper om;
+    private final TransactionTemplate tx;
     private final String shopCode;
     private final String defaultLocation;
 
@@ -58,6 +61,7 @@ public class ReplenishService {
             OmsClient oms,
             CodeGenerator codes,
             ObjectMapper om,
+            TransactionTemplate tx,
             @Value("${dms.oms.shop-code:SHOP-DMS01}") String shopCode,
             @Value("${dms.oms.receive-location:RCV-01}") String defaultLocation) {
         this.mapper = mapper;
@@ -67,6 +71,7 @@ public class ReplenishService {
         this.oms = oms;
         this.codes = codes;
         this.om = om;
+        this.tx = tx;
         this.shopCode = shopCode;
         this.defaultLocation = defaultLocation;
     }
@@ -84,24 +89,30 @@ public class ReplenishService {
         if (items == null || items.isEmpty()) {
             throw new BizException("补货明细不能为空");
         }
-        List<Map<String, Object>> lines = new ArrayList<>();
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
         for (Map<String, Object> it : items) {
             String partNo = String.valueOf(it.get("partNo"));
             int qty = it.get("qty") == null ? 0 : ((Number) it.get("qty")).intValue();
             if (qty <= 0) {
                 throw new BizException("备件 " + partNo + " 补货数量必须大于0");
             }
+            Map<String, Object> line = merged.get(partNo);
+            if (line != null) {
+                line.put("qty", ((Number) line.get("qty")).intValue() + qty);
+                continue;
+            }
             Part p = partMapper.selectOne(new QueryWrapper<Part>().eq("part_no", partNo));
             if (p == null) {
                 throw new BizException("备件不存在: " + partNo);
             }
-            Map<String, Object> line = new LinkedHashMap<>();
+            line = new LinkedHashMap<>();
             line.put("partNo", partNo);
             line.put("name", p.getName());
             line.put("qty", qty);
             line.put("price", p.getCostPrice());
-            lines.add(line);
+            merged.put(partNo, line);
         }
+        List<Map<String, Object>> lines = new ArrayList<>(merged.values());
         ReplenishOrder o = new ReplenishOrder();
         o.setReplenishNo(codes.next("RPL"));
         o.setDealerCode(dealer.getCode());
@@ -138,10 +149,12 @@ public class ReplenishService {
 
     // ------------------------------------------------------------ 下单 OMS
 
-    @Transactional
+    /**
+     * 下单 OMS。不在事务内调用远端:先 DRAFT->PUSHED 抢占,失败时回退 DRAFT 并记录 lastError(独立提交,不随异常回滚)。
+     */
     public ReplenishOrder push(Long id) {
         ReplenishOrder o = get(id);
-        if (!DRAFT.equals(o.getStatus())) {
+        if (!DRAFT.equals(o.getStatus()) || mapper.transit(id, DRAFT, PUSHED) != 1) {
             throw new BizException("仅草稿状态可下单 OMS(当前 " + o.getStatus() + ")");
         }
         Dealer dealer = dealer(o.getDealerCode());
@@ -165,22 +178,21 @@ public class ReplenishService {
             items.add(it);
         }
         req.put("items", items);
+        Map<String, Object> created;
         try {
-            Map<String, Object> created = oms.createOrder(req);
-            o.setOmsOrderNo(str(created.get("orderNo")));
-            o.setOmsStatus(str(created.get("status")));
-            o.setWarehouseCode(str(created.get("warehouseCode")));
-            o.setLastError(null);
-            o.setPushedAt(LocalDateTime.now());
-            o.setSyncedAt(LocalDateTime.now());
-            o.setStatus(PUSHED);
-            mapper.updateById(o);
-            applyOmsState(o, created);
+            created = oms.createOrder(req);
         } catch (OmsException e) {
-            o.setLastError(trim(e.getMessage()));
-            mapper.updateById(o);
+            mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                    .eq(ReplenishOrder::getId, id)
+                    .set(ReplenishOrder::getLastError, trim(e.getMessage())));
+            mapper.transit(id, PUSHED, DRAFT);
             throw new BizException("下单 OMS 失败: " + e.getMessage());
         }
+        mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                .eq(ReplenishOrder::getId, id)
+                .set(ReplenishOrder::getPushedAt, LocalDateTime.now()));
+        o.setStatus(PUSHED);
+        tx.executeWithoutResult(s -> applyOmsState(o, created));
         return mapper.selectById(id);
     }
 
@@ -211,8 +223,7 @@ public class ReplenishService {
 
     // ------------------------------------------------------------ 状态同步
 
-    /** 主动向 OMS 拉取单据状态 */
-    @Transactional
+    /** 主动向 OMS 拉取单据状态(远端调用在事务外,失败原因独立落库) */
     public ReplenishOrder sync(Long id) {
         ReplenishOrder o = get(id);
         if (!OPEN.contains(o.getStatus())) {
@@ -222,21 +233,24 @@ public class ReplenishService {
         try {
             remote = oms.getOrder(o.getShopCode(), o.getReplenishNo());
         } catch (OmsException e) {
-            o.setLastError(trim(e.getMessage()));
-            mapper.updateById(o);
+            markError(id, e.getMessage());
             throw new BizException("查询 OMS 失败: " + e.getMessage());
         }
         if (remote == null) {
-            o.setLastError("OMS 无此渠道单号 " + o.getReplenishNo());
-            mapper.updateById(o);
-            return o;
+            markError(id, "OMS 无此渠道单号 " + o.getReplenishNo());
+            return mapper.selectById(id);
         }
-        applyOmsState(o, remote);
+        tx.executeWithoutResult(s -> applyOmsState(o, remote));
         return mapper.selectById(id);
     }
 
+    private void markError(Long id, String msg) {
+        mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                .eq(ReplenishOrder::getId, id)
+                .set(ReplenishOrder::getLastError, trim(msg)));
+    }
+
     /** 同步所有在途补货单,返回同步条数 */
-    @Transactional
     public int syncAll() {
         int n = 0;
         for (ReplenishOrder o : mapper.selectList(new QueryWrapper<ReplenishOrder>().in("status", OPEN))) {
@@ -272,32 +286,35 @@ public class ReplenishService {
     /**
      * 把 OMS 订单快照应用到补货单。OMS 状态:CREATED/AUDITED/ALLOCATED/PUSHED/SPLIT -> 在途;
      * SHIPPED -> SHIPPED;COMPLETED -> RECEIVED(入库);CANCELLED -> CANCELLED。
+     * 元数据更新不携带 status,状态只经 transit 条件迁移,并发回推/轮询不会把已 RECEIVED 的单覆盖回 SHIPPED。
      */
     private void applyOmsState(ReplenishOrder o, Map<String, Object> remote) {
         String omsStatus = str(remote.get("status"));
+        LambdaUpdateWrapper<ReplenishOrder> meta = new LambdaUpdateWrapper<ReplenishOrder>()
+                .eq(ReplenishOrder::getId, o.getId())
+                .set(ReplenishOrder::getOmsStatus, omsStatus)
+                .set(ReplenishOrder::getSyncedAt, LocalDateTime.now())
+                .set(ReplenishOrder::getLastError, null);
         if (remote.get("orderNo") != null) {
             o.setOmsOrderNo(str(remote.get("orderNo")));
+            meta.set(ReplenishOrder::getOmsOrderNo, o.getOmsOrderNo());
         }
         if (remote.get("warehouseCode") != null) {
-            o.setWarehouseCode(str(remote.get("warehouseCode")));
+            meta.set(ReplenishOrder::getWarehouseCode, str(remote.get("warehouseCode")));
         }
         if (remote.get("carrierCode") != null) {
-            o.setCarrierCode(str(remote.get("carrierCode")));
+            meta.set(ReplenishOrder::getCarrierCode, str(remote.get("carrierCode")));
         }
         if (remote.get("trackingNo") != null) {
-            o.setTrackingNo(str(remote.get("trackingNo")));
+            meta.set(ReplenishOrder::getTrackingNo, str(remote.get("trackingNo")));
         }
-        o.setOmsStatus(omsStatus);
-        o.setSyncedAt(LocalDateTime.now());
-        o.setLastError(null);
-        mapper.updateById(o);
+        mapper.update(null, meta);
 
         if ("SHIPPED".equals(omsStatus) && PUSHED.equals(o.getStatus())) {
             if (mapper.transit(o.getId(), PUSHED, SHIPPED) == 1) {
-                ReplenishOrder u = new ReplenishOrder();
-                u.setId(o.getId());
-                u.setShippedAt(LocalDateTime.now());
-                mapper.updateById(u);
+                mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                        .eq(ReplenishOrder::getId, o.getId())
+                        .set(ReplenishOrder::getShippedAt, LocalDateTime.now()));
                 o.setStatus(SHIPPED);
             }
         } else if ("COMPLETED".equals(omsStatus)) {
@@ -337,10 +354,9 @@ public class ReplenishService {
                 stockService.inbound(o.getDealerCode(), partNo, location, batch, qty);
             }
         }
-        ReplenishOrder u = new ReplenishOrder();
-        u.setId(o.getId());
-        u.setReceivedAt(LocalDateTime.now());
-        mapper.updateById(u);
+        mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                .eq(ReplenishOrder::getId, o.getId())
+                .set(ReplenishOrder::getReceivedAt, LocalDateTime.now()));
     }
 
     // ------------------------------------------------------------ 查询

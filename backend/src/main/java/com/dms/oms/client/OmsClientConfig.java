@@ -17,8 +17,11 @@ public class OmsClientConfig {
             @Value("${dms.oms.timeout-ms:5000}") long timeoutMs,
             RestTemplateBuilder builder,
             ObjectMapper om) {
-        if (mock || baseUrl == null || baseUrl.trim().isEmpty()) {
+        if (mock) {
             return new MockOmsClient();
+        }
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            throw new IllegalStateException("dms.oms.mock=false 时必须配置 dms.oms.base-url(DMS_OMS_URL)");
         }
         return new HttpOmsClient(
                 baseUrl.trim(),
