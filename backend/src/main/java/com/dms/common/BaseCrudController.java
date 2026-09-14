@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import javax.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -58,7 +59,7 @@ public abstract class BaseCrudController<T extends BaseEntity, M extends BaseMap
     }
 
     @PostMapping
-    public R<T> create(@RequestBody T entity) {
+    public R<T> create(@Valid @RequestBody T entity) {
         entity.setId(null);
         beforeSave(entity);
         mapper.insert(entity);
@@ -66,7 +67,7 @@ public abstract class BaseCrudController<T extends BaseEntity, M extends BaseMap
     }
 
     @PutMapping("/{id}")
-    public R<T> update(@PathVariable Long id, @RequestBody T entity) {
+    public R<T> update(@PathVariable Long id, @Valid @RequestBody T entity) {
         entity.setId(id);
         beforeSave(entity);
         mapper.updateById(entity);

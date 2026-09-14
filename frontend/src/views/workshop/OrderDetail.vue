@@ -6,7 +6,12 @@
         <el-button @click="$router.back()">返回</el-button>
       </div>
       <el-steps :active="stepIndex" align-center style="margin: 16px 0" finish-status="success">
-        <el-step v-for="s in steps" :key="s" :title="stepNames[s]" />
+        <el-step
+          v-for="(s, index) in steps"
+          :key="s"
+          :title="stepNames[s]"
+          :status="order.status === 'CANCELLED' && index === stepIndex ? 'error' : undefined"
+        />
       </el-steps>
       <el-descriptions :column="4" border size="small">
         <el-descriptions-item label="车牌">{{ order.plateNo }}</el-descriptions-item>
@@ -19,6 +24,12 @@
         <el-descriptions-item label="备件费">{{ order.partsAmount }}</el-descriptions-item>
         <el-descriptions-item label="厂家承担">{{ order.warrantyAmount }}</el-descriptions-item>
         <el-descriptions-item label="客户应付">{{ order.customerPayable }}(税{{ order.taxAmount }})</el-descriptions-item>
+        <el-descriptions-item v-if="order.surveyId" label="满意度调研">
+          <router-link :to="`/survey/answer?id=${order.surveyId}`">满意度调研 #{{ order.surveyId }}</router-link>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="order.invoiceId" label="发票">
+          <router-link to="/invoice/list">发票 #{{ order.invoiceId }}</router-link>
+        </el-descriptions-item>
       </el-descriptions>
 
       <div class="detail-actions">
@@ -211,6 +222,8 @@ const stepNames = {
 }
 const stepIndex = computed(() => {
   if (!order.value) return 0
+  if (order.value.status === 'CLOSED') return steps.length
+  if (order.value.status === 'CANCELLED') return 0
   if (order.value.status === 'QC_FAILED') return steps.indexOf('IN_REPAIR')
   const i = steps.indexOf(order.value.status)
   return i < 0 ? 0 : i + 1

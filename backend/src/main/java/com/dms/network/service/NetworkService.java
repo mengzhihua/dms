@@ -20,6 +20,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
+import javax.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -197,9 +198,22 @@ public class NetworkService {
     // ======== 整车销售 ========
 
     @Transactional
-    public VehicleSalesOrder createSalesOrder(VehicleSalesOrder o) {
+    public VehicleSalesOrder createSalesOrder(@Valid VehicleSalesOrder o) {
+        if (o.getDealerCode() == null || o.getDealerCode().trim().isEmpty()) {
+            throw new BizException("经销商编码必填");
+        }
+        if (o.getCustomerId() == null) {
+            throw new BizException("客户必填");
+        }
+        if (o.getModelCode() == null || o.getModelCode().trim().isEmpty()) {
+            throw new BizException("车型必填");
+        }
+        if (o.getPrice() == null || o.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BizException("车价必须大于0");
+        }
         o.setId(null);
         o.setOrderNo(codeGenerator.next("SO"));
+        o.setDeposit(o.getDeposit() == null ? BigDecimal.ZERO : o.getDeposit());
         o.setStatus("NEW");
         salesOrderMapper.insert(o);
         return o;

@@ -80,7 +80,8 @@ export const menus = [
     name: '发票管理',
     icon: 'Tickets',
     children: [
-      { path: 'invoice', name: '发票列表', component: () => import('../views/invoice/InvoiceList.vue') }
+      { path: 'invoice', name: '发票列表', component: () => import('../views/invoice/InvoiceList.vue') },
+      { path: 'list', name: '发票列表（快捷入口）', component: () => import('../views/invoice/InvoiceList.vue') }
     ]
   }
 ]
