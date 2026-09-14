@@ -5,6 +5,7 @@ import com.dms.common.R;
 import com.dms.network.entity.VehicleSalesOrder;
 import com.dms.network.mapper.VehicleSalesOrderMapper;
 import com.dms.network.service.NetworkService;
+import javax.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,7 +24,7 @@ public class VehicleSalesOrderController
     }
 
     @Override
-    public R<VehicleSalesOrder> create(@RequestBody VehicleSalesOrder entity) {
+    public R<VehicleSalesOrder> create(@Valid @RequestBody VehicleSalesOrder entity) {
         return R.ok(service.createSalesOrder(entity));
     }
 

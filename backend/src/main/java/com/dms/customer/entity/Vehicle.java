@@ -3,6 +3,7 @@ package com.dms.customer.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.dms.common.BaseEntity;
 import java.time.LocalDate;
+import javax.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -10,6 +11,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("dms_vehicle")
 public class Vehicle extends BaseEntity {
+    @NotBlank(message = "VIN必填")
     private String vin;
     private String plateNo;
     private String modelCode;

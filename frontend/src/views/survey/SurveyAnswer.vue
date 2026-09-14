@@ -21,11 +21,13 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { survey as api } from '../../api'
 
-const surveyId = ref('')
+const route = useRoute()
+const surveyId = ref(route.query.id ? String(route.query.id) : '')
 const survey = ref(null)
 const questions = ref([])
 const answers = reactive({})
@@ -50,6 +52,12 @@ async function submit() {
   ElMessage.success('提交成功')
   await load()
 }
+
+onMounted(() => {
+  if (surveyId.value) {
+    load()
+  }
+})
 </script>
 
 <style scoped>

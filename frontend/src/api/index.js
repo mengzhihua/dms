@@ -71,7 +71,7 @@ export const workshop = {
 export const survey = {
   template: crud('/survey/template'),
   question: crud('/survey/question'),
-  survey: crud('/survey'),
+  survey: crud('/survey/record'),
   answer: crud('/survey/answer'),
   complaint: crud('/survey/complaint'),
   submitAnswer: (id, answers) => http.post(`/survey/${id}/answer`, { answers }),
