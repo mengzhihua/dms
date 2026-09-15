@@ -1,5 +1,6 @@
 package com.dms.guide.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.R;
 import com.dms.guide.service.GuideService;
 import java.util.List;
@@ -20,12 +21,12 @@ public class GuideController {
                         (String) body.get("modelCode"),
                         (List<String>) body.get("dtcCodes"),
                         (String) body.get("symptom"),
-                        (String) body.get("dealerCode")));
+                        DataScope.effectiveDealer((String) body.get("dealerCode"))));
     }
 
     @GetMapping("/estimate")
     public R<Map<String, Object>> estimate(
             @RequestParam String guideCode, @RequestParam(required = false) String dealerCode) {
-        return R.ok(service.estimate(guideCode, dealerCode));
+        return R.ok(service.estimate(guideCode, DataScope.effectiveDealer(dealerCode)));
     }
 }

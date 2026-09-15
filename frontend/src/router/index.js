@@ -1,5 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '../layout/Layout.vue'
+import { store } from '../store'
+
+const NETWORK_ROLES = ['ADMIN', 'OEM', 'DEALER_MANAGER']
+const INVOICE_ROLES = ['ADMIN', 'OEM', 'DEALER_MANAGER', 'FINANCE']
 
 export const menus = [
   {
@@ -12,6 +16,7 @@ export const menus = [
     path: '/network',
     name: '网络管理',
     icon: 'OfficeBuilding',
+    roles: NETWORK_ROLES,
     children: [
       { path: 'dealer', name: '经销商与直营店', component: () => import('../views/network/Dealer.vue') },
       { path: 'target', name: '目标与达成', component: () => import('../views/network/Target.vue') },
@@ -80,14 +85,25 @@ export const menus = [
     path: '/invoice',
     name: '发票管理',
     icon: 'Tickets',
+    roles: INVOICE_ROLES,
     children: [
       { path: 'invoice', name: '发票列表', component: () => import('../views/invoice/InvoiceList.vue') },
       { path: 'list', name: '发票列表（快捷入口）', component: () => import('../views/invoice/InvoiceList.vue') }
+    ]
+  },
+  {
+    path: '/system',
+    name: '系统管理',
+    icon: 'Setting',
+    roles: ['ADMIN'],
+    children: [
+      { path: 'user', name: '用户管理', component: () => import('../views/system/UserList.vue') }
     ]
   }
 ]
 
 const routes = [
+  { path: '/login', name: '登录', component: () => import('../views/Login.vue') },
   {
     path: '/',
     component: Layout,
@@ -111,7 +127,19 @@ const routes = [
   }
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes
 })
+
+router.beforeEach((to) => {
+  if (to.path === '/login') {
+    return true
+  }
+  if (!store.token) {
+    return `/login?redirect=${encodeURIComponent(to.fullPath)}`
+  }
+  return true
+})
+
+export default router

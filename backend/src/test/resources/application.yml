@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:dms-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      continue-on-error: true
+  h2:
+    console:
+      enabled: false
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+logging:
+  level:
+    com.dms: warn
+dms:
+  auth:
+    jwt-secret: test-secret-key-for-dms-jwt-signing-0123456789abcdef
+    expire-hours: 12
+  cors:
+    allowed-origins: "*"
+  tax:
+    provider: MOCK
+    mock-fail-rate: 0
+    endpoint: http://localhost:9999/tax
+    app-id: dms-app
+    app-secret: change-me
+    callback-token: ""
+  oms:
+    mock: true
+    base-url: ""
+    api-key: ""
+    shop-code: SHOP-DMS01
+    receive-location: RCV-01
+    timeout-ms: 5000
+    callback-key: ""

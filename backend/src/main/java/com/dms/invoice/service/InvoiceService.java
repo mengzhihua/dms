@@ -1,6 +1,7 @@
 package com.dms.invoice.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.invoice.entity.Invoice;
@@ -187,6 +188,7 @@ public class InvoiceService {
     @Transactional
     public Invoice createManual(Invoice inv) {
         inv.setId(null);
+        inv.setDealerCode(DataScope.effectiveDealer(inv.getDealerCode()));
         inv.setInvoiceNo(codeGenerator.next("INV"));
         fillSellerAndAmounts(inv, inv.getAmount() == null ? BigDecimal.ZERO : inv.getAmount());
         inv.setStatus("DRAFT");
@@ -337,6 +339,7 @@ public class InvoiceService {
         if (inv == null) {
             throw new BizException("发票不存在: " + id);
         }
+        DataScope.check(inv.getDealerCode());
         return inv;
     }
 }

@@ -102,4 +102,12 @@ export const invoice = {
   preview: (id) => http.get(`/invoice/${id}/preview`)
 }
 
+export const auth = {
+  login: (data) => http.post('/auth/login', data),
+  me: () => http.get('/auth/me'),
+  logout: () => http.post('/auth/logout'),
+  changePassword: (old, newPwd) => http.put('/auth/password', { old, new: newPwd }),
+  user: crud('/auth/user')
+}
+
 export const dashboard = (dealerCode) => http.get('/dashboard', { params: { dealerCode } })

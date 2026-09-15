@@ -1,6 +1,7 @@
 package com.dms.dashboard;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.R;
 import com.dms.invoice.entity.Invoice;
 import com.dms.invoice.mapper.InvoiceMapper;
@@ -43,6 +44,7 @@ public class DashboardController {
 
     @GetMapping
     public R<Map<String, Object>> summary(@RequestParam(required = false) String dealerCode) {
+        dealerCode = DataScope.effectiveDealer(dealerCode);
         Map<String, Object> m = new LinkedHashMap<>();
         String monthStart = LocalDate.now().withDayOfMonth(1).toString();
 
@@ -142,18 +144,21 @@ public class DashboardController {
         m.put(
                 "pendingSurveys",
                 surveyMapper.selectCount(dealerQ3(dealerCode).eq("status", "PENDING")));
-        m.put("dealerRanking", dealerRanking(monthStart));
+        m.put("dealerRanking", dealerRanking(monthStart, dealerCode));
         return R.ok(m);
     }
 
     /** 各经销商当月结算金额排名。 */
-    private List<Map<String, Object>> dealerRanking(String monthStart) {
+    private List<Map<String, Object>> dealerRanking(String monthStart, String dealerCode) {
         Map<String, BigDecimal> revenue = new HashMap<>();
-        for (WorkOrder o :
-                orderMapper.selectList(
-                        new QueryWrapper<WorkOrder>()
-                                .in("status", "SETTLED", "DELIVERED", "CLOSED")
-                                .ge("settle_time", monthStart))) {
+        QueryWrapper<WorkOrder> rankQ =
+                new QueryWrapper<WorkOrder>()
+                        .in("status", "SETTLED", "DELIVERED", "CLOSED")
+                        .ge("settle_time", monthStart);
+        if (dealerCode != null && !dealerCode.isEmpty()) {
+            rankQ.eq("dealer_code", dealerCode);
+        }
+        for (WorkOrder o : orderMapper.selectList(rankQ)) {
             if (o.getTotalAmount() != null) {
                 revenue.merge(o.getDealerCode(), o.getTotalAmount(), BigDecimal::add);
             }

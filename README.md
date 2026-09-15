@@ -41,6 +41,28 @@ scripts/   smoke.sh 全链路冒烟脚本
 
 - 冒烟：`bash scripts/smoke.sh`（后端启动后执行，覆盖工单全流程+发票+调研+销售流程，输出 SMOKE OK）
 
+## 登录与权限（RBAC）
+
+所有 `/api/**` 接口（除 `/api/auth/login`、`/api/invoice/callback/**`、`/api/open/**`）需携带 `Authorization: Bearer <token>`（JWT，HS256）。前端打开即跳转 `/login`。
+
+演示账号（初始密码均为 `123456`）：
+
+| 账号 | 角色 | 经销商 | 说明 |
+|---|---|---|---|
+| admin | ADMIN | — | 全部权限，含用户管理 |
+| oem | OEM | — | 全网只读；可写网络/指导库/车型/备件主数据/调研模板 |
+| d001mgr | DEALER_MANAGER | D001 | 店内全部权限；不可写经销商主数据/目标/考核/指导库/调研模板/用户管理 |
+| d001sa | ADVISOR | D001 | 全网只读；可写工单、客户车辆、调研答卷/投诉、备件预留释放/入库、OMS 补货 |
+| d001tech | TECHNICIAN | D001 | 只读工单/指导/客户/备件；可写工单开工/完工/质检 |
+| d001fin | FINANCE | D001 | 全网只读；可写发票、工单结算、整车销售开票/交车 |
+| d002mgr | DEALER_MANAGER | D002 | 同 d001mgr |
+
+- 数据范围：非全网角色（ADMIN/OEM 之外）仅能访问 `dealer_code` = 本店的记录；跨店读取/操作返回 400「无权访问其他经销商数据」；新建记录自动归属本店。
+- 用户管理：`/api/auth/user` CRUD（仅 ADMIN），支持新建时传 `password` 明文（后端 BCrypt 落库，`passwordHash` 永不回传），不能删除/禁用自己。
+- 接口：`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout`、`PUT /api/auth/password`。
+- 配置：`dms.auth.jwt-secret`（HS256 密钥，生产必须修改）、`dms.auth.expire-hours`（默认 12）。
+- 权限矩阵见 `RolePolicy`（基于 AntPathMatcher 的角色→路径表）。
+
 ## 工单状态机
 
 ```

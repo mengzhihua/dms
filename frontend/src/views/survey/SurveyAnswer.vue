@@ -34,13 +34,17 @@ const answers = reactive({})
 const answered = computed(() => survey.value && survey.value.status === 'ANSWERED')
 
 async function load() {
+  const s = await api.survey.get(surveyId.value)
+  // 请求成功后再清空旧数据，避免加载失败丢失当前视图
   Object.keys(answers).forEach((k) => delete answers[k])
-  survey.value = await api.survey.get(surveyId.value)
+  survey.value = s
   const tpl = (await api.template.list({ size: 50 })) || []
   const t = tpl.find((x) => x.code === survey.value.templateCode)
   if (t) {
     questions.value = (await api.question.list({ size: 100, templateId: t.id })) || []
     questions.value.sort((a, b) => (a.seq || 0) - (b.seq || 0))
+  } else {
+    questions.value = []
   }
   if (survey.value.status === 'ANSWERED') {
     const saved = (await api.surveyAnswers(surveyId.value)) || []

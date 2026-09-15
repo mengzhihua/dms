@@ -16,4 +16,10 @@ public class DealerController extends BaseCrudController<Dealer, DealerMapper> {
     protected String[] keywordColumns() {
         return new String[]{"code","name"};
     }
+
+    /** Dealer 没有 dealer_code 列，用自身 code 做数据范围。 */
+    @Override
+    protected String scopeColumn() {
+        return "code";
+    }
 }

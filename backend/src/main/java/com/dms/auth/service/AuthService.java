@@ -1,0 +1,81 @@
+package com.dms.auth.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.JwtService;
+import com.dms.auth.LoginUser;
+import com.dms.auth.Role;
+import com.dms.auth.UserContext;
+import com.dms.auth.entity.SysUser;
+import com.dms.auth.mapper.SysUserMapper;
+import com.dms.common.BizException;
+import java.util.HashMap;
+import java.util.Map;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthService {
+    private final SysUserMapper userMapper;
+    private final JwtService jwtService;
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+    public AuthService(SysUserMapper userMapper, JwtService jwtService) {
+        this.userMapper = userMapper;
+        this.jwtService = jwtService;
+    }
+
+    public String hashPassword(String raw) {
+        return encoder.encode(raw);
+    }
+
+    public Map<String, Object> login(String username, String password) {
+        SysUser u =
+                userMapper.selectOne(
+                        new QueryWrapper<SysUser>().eq("username", username).last("LIMIT 1"));
+        if (u == null
+                || !Boolean.TRUE.equals(u.getEnabled())
+                || u.getPasswordHash() == null
+                || password == null
+                || !encoder.matches(password, u.getPasswordHash())) {
+            throw new BizException(401, "用户名或密码错误");
+        }
+        LoginUser login = toLoginUser(u);
+        Map<String, Object> m = new HashMap<>();
+        m.put("token", jwtService.issue(login));
+        Map<String, Object> user = new HashMap<>();
+        user.put("id", u.getId());
+        user.put("username", u.getUsername());
+        user.put("realName", u.getRealName());
+        user.put("role", u.getRole());
+        user.put("dealerCode", u.getDealerCode());
+        m.put("user", user);
+        return m;
+    }
+
+    public SysUser me() {
+        LoginUser login = UserContext.get();
+        if (login == null) {
+            throw new BizException(401, "未登录或登录已过期");
+        }
+        return userMapper.selectById(login.getId());
+    }
+
+    public void changePassword(String oldPwd, String newPwd) {
+        if (newPwd == null || newPwd.trim().length() < 6) {
+            throw new BizException("新密码至少 6 位");
+        }
+        SysUser u = me();
+        if (u == null
+                || u.getPasswordHash() == null
+                || oldPwd == null
+                || !encoder.matches(oldPwd, u.getPasswordHash())) {
+            throw new BizException("原密码错误");
+        }
+        u.setPasswordHash(encoder.encode(newPwd));
+        userMapper.updateById(u);
+    }
+
+    private LoginUser toLoginUser(SysUser u) {
+        return new LoginUser(u.getId(), u.getUsername(), Role.of(u.getRole()), u.getDealerCode());
+    }
+}

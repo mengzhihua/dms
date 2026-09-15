@@ -16,7 +16,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
     public R<Void> biz(BizException e) {
-        return R.fail(400, e.getMessage());
+        return R.fail(e.getCode(), e.getMessage());
     }
 
     @ExceptionHandler({DuplicateKeyException.class, DataIntegrityViolationException.class})

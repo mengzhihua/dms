@@ -170,3 +170,13 @@ INSERT INTO dms_tax_config(dealer_code,tax_rate,seller_name,seller_tax_no) VALUE
 ('D001',0.13,'上海申联汽车4S店','91310000MA1K00001A'),
 ('D002',0.13,'杭州宏达汽车4S店','91330100MA2K00002B'),
 ('S001',0.13,'品牌直营上海旗舰店','91310000MA1K00003C');
+
+-- ============ 系统用户（初始密码均为 123456，BCrypt） ============
+INSERT INTO sys_user(username,password_hash,real_name,role,dealer_code,enabled) VALUES
+('admin','$2a$10$C9iArSMtcAXl9h0wqSrG7u4RR9kBcSkoANit.wBKa/vHhu3sAzzU.','系统管理员','ADMIN',NULL,TRUE),
+('oem','$2a$10$d0a8j/7gjzq5zTlatOHsI.nxcOFAcQOP5aCpNbX1d7OPV2vomz.se','厂家管理员','OEM',NULL,TRUE),
+('d001mgr','$2a$10$j65dKjZSUblsakkGMnWUh.oL/cylZnw19QXaK52AuXLg.OapmEogK','上海申联-店总','DEALER_MANAGER','D001',TRUE),
+('d001sa','$2a$10$Y.YD/se9tPtbRqgev6M/su5tCkNZwIP.2.uPz5sVz69OYcD/tgTCG','服务顾问小王','ADVISOR','D001',TRUE),
+('d001tech','$2a$10$3a0NQRntg9qzQcMbh/uObOsUNnXQsKlhues.grTUqa6cdtuNwR2bK','技师小李','TECHNICIAN','D001',TRUE),
+('d001fin','$2a$10$pSIaQNaeCZdmXbo1WfXhGuV1fFa9X1qJ9BGTFYUiWeX4ak83LcdHa','财务小赵','FINANCE','D001',TRUE),
+('d002mgr','$2a$10$0NkIZUTrB4qQ7H8QaVanyelSzpZLJkdXayMRz6tPjElzqsrZdc.We','杭州宏达-店总','DEALER_MANAGER','D002',TRUE);

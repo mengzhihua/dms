@@ -4,10 +4,20 @@ BASE="${1:-http://localhost:8080}/api"
 J='Content-Type: application/json'
 need(){ command -v "$1" >/dev/null || { echo "missing $1"; exit 1; }; }
 need curl; need jq
-call(){ local out; out=$(curl -sf -X "$1" "$BASE$2" -H "$J" ${3:+-d "$3"}); [ "$(echo "$out"|jq -r .code)" = "0" ] || { echo "FAIL $1 $2 -> $out"; exit 1; }; echo "$out"|jq -c .data; }
-fail(){ local out; out=$(curl -s -X "$1" "$BASE$2" -H "$J" ${3:+-d "$3"}); [ "$(echo "$out"|jq -r .code)" != "0" ] || { echo "EXPECTED-FAIL but ok $1 $2 -> $out"; exit 1; }; echo "$out"|jq -c '{code,msg}'; }
+login(){ curl -s -X POST "$BASE/auth/login" -H "$J" -d "{\"username\":\"$1\",\"password\":\"$2\"}" | jq -r '.data.token'; }
+TOKEN=$(login admin 123456); [ "$TOKEN" != "null" ] && [ -n "$TOKEN" ] || { echo "admin login failed"; exit 1; }
+call(){ local out; out=$(curl -sf -X "$1" "$BASE$2" -H "$J" -H "Authorization: Bearer $TOKEN" ${3:+-d "$3"}); [ "$(echo "$out"|jq -r .code)" = "0" ] || { echo "FAIL $1 $2 -> $out"; exit 1; }; echo "$out"|jq -c .data; }
+fail(){ local out; out=$(curl -s -X "$1" "$BASE$2" -H "$J" -H "Authorization: Bearer $TOKEN" ${3:+-d "$3"}); [ "$(echo "$out"|jq -r .code)" != "0" ] || { echo "EXPECTED-FAIL but ok $1 $2 -> $out"; exit 1; }; echo "$out"|jq -c '{code,msg}'; }
+callt(){ local out; out=$(curl -sf -X "$2" "$BASE$3" -H "$J" -H "Authorization: Bearer $1" ${4:+-d "$4"}); [ "$(echo "$out"|jq -r .code)" = "0" ] || { echo "FAIL(as $1) $2 $3 -> $out"; exit 1; }; echo "$out"|jq -c .data; }
+raw(){ curl -s -X "$2" "$BASE$3" -H "$J" ${1:+-H "Authorization: Bearer $1"} ${4:+-d "$4"}; }
 
 DC=D001
+echo "== 0 auth negative checks"
+test "$(raw "" GET /dashboard | jq -r .code)" = "401"
+test "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/dashboard")" = "401"
+TOK_SA=$(login d001sa 123456); TOK_D002=$(login d002mgr 123456); TOK_TECH=$(login d001tech 123456)
+test "$(callt "$TOK_SA" GET '/network/dealer/page?size=50' | jq -c '[.records[].code]')" = '["D001"]'
+test "$(raw "$TOK_TECH" POST /customer/customer '{"name":"x","phone":"1"}' | jq -r .code)" = "403"
 echo "== 1 create customer + vehicle"
 C=$(call POST /customer/customer "{\"name\":\"冒烟测试客户\",\"phone\":\"13900000000\",\"dealerCode\":\"$DC\"}")
 CID=$(echo "$C"|jq -r .id)
@@ -21,6 +31,8 @@ AID=$(echo "$A"|jq -r .id)
 WO=$(call POST /workshop/order "{\"appointmentId\":$AID,\"mileageIn\":12000,\"fuelLevel\":\"1/2\",\"orderType\":\"REGULAR\",\"complaint\":\"刹车异响\",\"advisorName\":\"服务顾问小王\"}")
 OID=$(echo "$WO"|jq -r .id); ONO=$(echo "$WO"|jq -r .orderNo)
 test "$(echo "$WO"|jq -r .status)" = "CHECKED_IN"; [[ "$ONO" == WO* ]]
+# 跨店访问工单应被拒
+test "$(raw "$TOK_D002" GET "/workshop/order/$OID" | jq -rc '[.code, (.msg|test("无权访问"))]')" = '[400,true]'
 
 echo "== 3 guide recommend + apply"
 R=$(call POST /guide/recommend "{\"modelCode\":\"M001\",\"dtcCodes\":[],\"symptom\":\"刹车异响\",\"dealerCode\":\"$DC\"}")

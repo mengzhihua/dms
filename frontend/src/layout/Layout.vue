@@ -7,13 +7,13 @@
       </div>
       <el-menu
         :default-active="route.path"
-        :default-openeds="menus.filter((item) => item.children).map((item) => item.path)"
+        :default-openeds="visibleMenus.filter((item) => item.children).map((item) => item.path)"
         background-color="#1f2d3d"
         text-color="#bfcbd9"
         active-text-color="#409eff"
         router
       >
-        <template v-for="menu in menus" :key="menu.path">
+        <template v-for="menu in visibleMenus" :key="menu.path">
           <el-sub-menu v-if="menu.children" :index="menu.path">
             <template #title>
               <el-icon><component :is="menu.icon" /></el-icon>
@@ -44,6 +44,7 @@
             :model-value="store.dealerCode"
             placeholder="选择经销商"
             clearable
+            :disabled="!networkWide"
             style="width: 220px"
             @change="onDealerChange"
           >
@@ -54,29 +55,101 @@
               :value="d.code"
             />
           </el-select>
-          <span class="muted"><el-icon><User /></el-icon> admin</span>
+          <el-tag size="small" :type="roleTagType">{{ roleName }}</el-tag>
+          <el-dropdown @command="onUserCmd">
+            <span class="user-name">
+              <el-icon><User /></el-icon> {{ store.user?.realName || store.user?.username }}
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="password">修改密码</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
       <el-main class="main">
         <router-view />
       </el-main>
     </el-container>
+
+    <el-dialog v-model="pwdVisible" title="修改密码" width="400px">
+      <el-form label-width="80px">
+        <el-form-item label="原密码"><el-input v-model="pwd.old" type="password" show-password /></el-form-item>
+        <el-form-item label="新密码"><el-input v-model="pwd.new" type="password" show-password /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdVisible = false">取消</el-button>
+        <el-button type="primary" @click="changePwd">确定</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { menus } from '../router'
-import { network } from '../api'
-import { store, setDealer } from '../store'
+import { network, auth } from '../api'
+import { store, setDealer, logout } from '../store'
 
 const route = useRoute()
+const router = useRouter()
 const dealers = ref([])
+const pwdVisible = ref(false)
+const pwd = reactive({ old: '', new: '' })
+
+const roleName = computed(() => {
+  const names = {
+    ADMIN: '系统管理员',
+    OEM: '厂家',
+    DEALER_MANAGER: '经销商经理',
+    ADVISOR: '服务顾问',
+    TECHNICIAN: '技师',
+    FINANCE: '财务'
+  }
+  return names[store.user?.role] || store.user?.role || ''
+})
+const roleTagType = computed(() => (networkWide.value ? 'warning' : 'info'))
+const networkWide = computed(() => ['ADMIN', 'OEM'].includes(store.user?.role))
+
+const visibleMenus = computed(() => {
+  const role = store.user?.role
+  if (!role) return []
+  return menus.filter((m) => !m.roles || m.roles.includes(role))
+})
 
 function onDealerChange(code) {
   setDealer(code)
   window.dispatchEvent(new Event('dealer-change'))
+}
+
+async function onUserCmd(cmd) {
+  if (cmd === 'logout') {
+    try {
+      await auth.logout()
+    } catch (e) {
+      // 忽略登出失败
+    }
+    logout()
+    router.push('/login')
+  } else if (cmd === 'password') {
+    pwd.old = ''
+    pwd.new = ''
+    pwdVisible.value = true
+  }
+}
+
+async function changePwd() {
+  if (!pwd.old || !pwd.new) {
+    ElMessage.warning('请输入原密码和新密码')
+    return
+  }
+  await auth.changePassword(pwd.old, pwd.new)
+  ElMessage.success('密码已修改')
+  pwdVisible.value = false
 }
 
 onMounted(async () => {
@@ -135,6 +208,13 @@ const crumbs = computed(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.user-name {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .main {

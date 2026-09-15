@@ -1,6 +1,7 @@
 package com.dms.network.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.customer.entity.Vehicle;
@@ -44,6 +45,7 @@ public class NetworkService {
 
     /** 目标达成：按 dealerCode+yearMonth 统计整车交付数、工单数、已结算金额 vs 目标。 */
     public Map<String, Object> achievement(String dealerCode, String yearMonth) {
+        dealerCode = DataScope.effectiveDealer(dealerCode);
         String from = yearMonth + "-01";
         String to = YearMonth.parse(yearMonth).atEndOfMonth().toString();
         long salesDone =
@@ -199,6 +201,7 @@ public class NetworkService {
 
     @Transactional
     public VehicleSalesOrder createSalesOrder(@Valid VehicleSalesOrder o) {
+        o.setDealerCode(DataScope.effectiveDealer(o.getDealerCode()));
         if (o.getDealerCode() == null || o.getDealerCode().trim().isEmpty()) {
             throw new BizException("经销商编码必填");
         }
@@ -318,6 +321,7 @@ public class NetworkService {
         if (o == null) {
             throw new BizException("销售订单不存在");
         }
+        DataScope.check(o.getDealerCode());
         return o;
     }
 }

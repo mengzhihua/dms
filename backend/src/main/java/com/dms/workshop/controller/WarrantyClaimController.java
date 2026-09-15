@@ -1,5 +1,6 @@
 package com.dms.workshop.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.BizException;
 import com.dms.common.R;
@@ -23,6 +24,7 @@ public class WarrantyClaimController extends BaseCrudController<WarrantyClaim, W
         if (c == null) {
             throw new BizException("索赔单不存在");
         }
+        DataScope.check(c.getDealerCode());
         if (from != null && !from.equals(c.getStatus())) {
             throw new BizException("非法状态流转: " + c.getStatus() + " -> " + to);
         }
