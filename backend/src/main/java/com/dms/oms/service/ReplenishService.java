@@ -26,6 +26,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import java.time.Duration;
 
 /**
  * 备件补货:DMS 作为 OMS 的渠道(shopCode=dms.oms.shop-code,channelOrderNo=replenishNo)。
@@ -42,6 +45,8 @@ public class ReplenishService {
     public static final String RECEIVED = "RECEIVED";
     public static final String CANCELLED = "CANCELLED";
     private static final List<String> OPEN = Arrays.asList(PUSHED, SHIPPED);
+    /** 超过此时长仍在 PUSHING 视为下单中断,syncAll 时恢复 */
+    private static final Duration PUSHING_TIMEOUT = Duration.ofMinutes(2);
     /** OMS 状态先后次序,旧快照不能覆盖新快照的元数据 */
     private static final List<String> OMS_ORDER = Arrays.asList(
             "CREATED", "AUDITED", "ALLOCATED", "PUSHED", "SPLIT", "SHIPPED", "COMPLETED", "CANCELLED");
@@ -166,6 +171,26 @@ public class ReplenishService {
         if (!DRAFT.equals(o.getStatus()) || mapper.transit(id, DRAFT, PUSHING) != 1) {
             throw new BizException("仅草稿状态可下单 OMS(当前 " + o.getStatus() + ")");
         }
+        Map<String, Object> req;
+        try {
+            req = buildOrderRequest(o);
+        } catch (RuntimeException e) {
+            markError(id, e.getMessage());
+            mapper.transit(id, PUSHING, DRAFT);
+            throw e;
+        }
+        Map<String, Object> created;
+        try {
+            created = oms.createOrder(req);
+        } catch (OmsException e) {
+            markError(id, e.getMessage());
+            mapper.transit(id, PUSHING, DRAFT);
+            throw new BizException("下单 OMS 失败: " + e.getMessage());
+        }
+        return confirmPushed(o, created);
+    }
+
+    private Map<String, Object> buildOrderRequest(ReplenishOrder o) {
         Dealer dealer = dealer(o.getDealerCode());
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("shopCode", o.getShopCode());
@@ -187,23 +212,53 @@ public class ReplenishService {
             items.add(it);
         }
         req.put("items", items);
-        Map<String, Object> created;
-        try {
-            created = oms.createOrder(req);
-        } catch (OmsException e) {
-            mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
-                    .eq(ReplenishOrder::getId, id)
-                    .set(ReplenishOrder::getLastError, trim(e.getMessage())));
-            mapper.transit(id, PUSHING, DRAFT);
-            throw new BizException("下单 OMS 失败: " + e.getMessage());
-        }
+        return req;
+    }
+
+    /** OMS 已建单:PUSHING->PUSHED 并应用 OMS 快照 */
+    private ReplenishOrder confirmPushed(ReplenishOrder o, Map<String, Object> remote) {
         mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
-                .eq(ReplenishOrder::getId, id)
+                .eq(ReplenishOrder::getId, o.getId())
                 .set(ReplenishOrder::getPushedAt, LocalDateTime.now()));
-        mapper.transit(id, PUSHING, PUSHED);
+        mapper.transit(o.getId(), PUSHING, PUSHED);
         o.setStatus(PUSHED);
-        tx.executeWithoutResult(s -> applyOmsState(o, created));
-        return mapper.selectById(id);
+        tx.executeWithoutResult(s -> applyOmsState(o, remote));
+        return mapper.selectById(o.getId());
+    }
+
+    /**
+     * 恢复因进程中断停在 PUSHING 的补货单:按 shopCode+replenishNo 查 OMS,已建单则转 PUSHED,未建单则回退 DRAFT。
+     * 启动时恢复全部 PUSHING;syncAll 仅恢复超时的 PUSHING(避免与正在进行的 push 竞争)。
+     */
+    public int recoverPushing(boolean onlyStale) {
+        QueryWrapper<ReplenishOrder> q = new QueryWrapper<ReplenishOrder>().eq("status", PUSHING);
+        if (onlyStale) {
+            q.lt("updated_at", LocalDateTime.now().minus(PUSHING_TIMEOUT));
+        }
+        int n = 0;
+        for (ReplenishOrder o : mapper.selectList(q)) {
+            try {
+                Map<String, Object> remote = oms.getOrder(o.getShopCode(), o.getReplenishNo());
+                if (remote == null) {
+                    markError(o.getId(), "下单中断,OMS 无此单,已回退草稿");
+                    mapper.transit(o.getId(), PUSHING, DRAFT);
+                } else {
+                    confirmPushed(o, remote);
+                }
+                n++;
+            } catch (OmsException e) {
+                log.warn("补货单 {} PUSHING 恢复失败: {}", o.getReplenishNo(), e.getMessage());
+            }
+        }
+        return n;
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverPushingOnStartup() {
+        int n = recoverPushing(false);
+        if (n > 0) {
+            log.info("启动恢复 PUSHING 补货单 {} 张", n);
+        }
     }
 
     @Transactional
@@ -265,7 +320,7 @@ public class ReplenishService {
 
     /** 同步所有在途补货单,返回同步条数 */
     public int syncAll() {
-        int n = 0;
+        int n = recoverPushing(true);
         for (ReplenishOrder o : mapper.selectList(new QueryWrapper<ReplenishOrder>().in("status", OPEN))) {
             try {
                 sync(o.getId());
@@ -336,10 +391,10 @@ public class ReplenishService {
                 o.setStatus(SHIPPED);
             }
         } else if ("COMPLETED".equals(omsStatus)) {
-            if (PUSHED.equals(o.getStatus()) && mapper.transit(o.getId(), PUSHED, SHIPPED) == 1) {
-                o.setStatus(SHIPPED);
-            }
-            if (SHIPPED.equals(o.getStatus()) && mapper.transit(o.getId(), SHIPPED, RECEIVED) == 1) {
+            // 不依赖入口处读到的 o.status:并发线程可能已完成 PUSHED->SHIPPED,这里继续以数据库当前状态认领入库
+            mapper.transit(o.getId(), PUSHED, SHIPPED);
+            if (mapper.transit(o.getId(), SHIPPED, RECEIVED) == 1) {
+                o.setStatus(RECEIVED);
                 receive(o, remote);
             }
         } else if ("CANCELLED".equals(omsStatus) && PUSHED.equals(o.getStatus())) {
@@ -363,7 +418,8 @@ public class ReplenishService {
                 }
             }
         }
-        String batch = o.getOmsOrderNo() == null ? o.getReplenishNo() : o.getOmsOrderNo();
+        String omsNo = remote.get("orderNo") != null ? str(remote.get("orderNo")) : o.getOmsOrderNo();
+        String batch = omsNo == null ? o.getReplenishNo() : omsNo;
         String location = o.getLocation() == null ? defaultLocation : o.getLocation();
         for (Map<String, Object> l : lines(o)) {
             String partNo = str(l.get("partNo"));
