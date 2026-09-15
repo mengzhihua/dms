@@ -5,19 +5,29 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.SecureRandom;
 import java.util.Date;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class JwtService {
     private final Key key;
     private final long expireMillis;
 
     public JwtService(
-            @Value("${dms.auth.jwt-secret:dev-secret-key-for-dms-jwt-signing-please-change-in-production}") String secret,
+            @Value("${dms.auth.jwt-secret:}") String secret,
             @Value("${dms.auth.expire-hours:12}") long expireHours) {
-        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        if (secret == null || secret.trim().isEmpty()) {
+            bytes = new byte[64];
+            new SecureRandom().nextBytes(bytes);
+            log.warn("未配置 dms.auth.jwt-secret，已生成随机密钥，重启后旧 token 失效");
+        } else {
+            bytes = secret.getBytes(StandardCharsets.UTF_8);
+        }
         if (bytes.length < 32) {
             byte[] padded = new byte[32];
             System.arraycopy(bytes, 0, padded, 0, bytes.length);

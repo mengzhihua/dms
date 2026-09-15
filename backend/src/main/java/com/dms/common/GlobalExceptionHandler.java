@@ -15,7 +15,10 @@ public class GlobalExceptionHandler {
     private static final String INTEGRITY_MESSAGE = "数据不完整或重复，请检查必填项/唯一字段";
 
     @ExceptionHandler(BizException.class)
-    public R<Void> biz(BizException e) {
+    public R<Void> biz(BizException e, javax.servlet.http.HttpServletResponse res) {
+        if (e.getCode() == 401 || e.getCode() == 403) {
+            res.setStatus(e.getCode());
+        }
         return R.fail(e.getCode(), e.getMessage());
     }
 

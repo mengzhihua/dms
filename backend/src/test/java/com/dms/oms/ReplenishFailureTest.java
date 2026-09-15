@@ -132,9 +132,21 @@ class ReplenishFailureTest {
                 .andExpect(jsonPath("$.code").value(400));
     }
 
+    private String adminToken() throws Exception {
+        String body =
+                mvc.perform(post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\":\"admin\",\"password\":\"123456\"}"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(body, "$.data.token");
+    }
+
     @Test
     void genericWriteEndpointsDisabled() throws Exception {
         mvc.perform(post("/api/oms/replenish")
+                        .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"replenishNo\":\"RPL-HACK\",\"dealerCode\":\"D001\",\"status\":\"SHIPPED\"}"))
                 .andExpect(jsonPath("$.code").value(400));

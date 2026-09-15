@@ -48,7 +48,14 @@ public class RolePolicy {
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =
             Arrays.asList(
-                    "/api/workshop/**", "/api/guide/**", "/api/customer/**", "/api/parts/**");
+                    "/api/workshop/**",
+                    "/api/guide/**",
+                    "/api/customer/**",
+                    "/api/parts/**",
+                    "/api/network/dealer/**",
+                    "/api/network/technician/**",
+                    "/api/network/bay/**",
+                    "/api/dashboard/**");
     /** 技师可写：工单开工/完工/质检。 */
     private static final List<String> TECH_WRITE =
             Arrays.asList(
