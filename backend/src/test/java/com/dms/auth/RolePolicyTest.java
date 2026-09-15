@@ -57,7 +57,10 @@ class RolePolicyTest {
         assertTrue(RolePolicy.allowed("TECHNICIAN", "POST", "/api/workshop/order/1/start"));
         assertTrue(RolePolicy.allowed("TECHNICIAN", "POST", "/api/workshop/order/1/finish"));
         assertTrue(RolePolicy.allowed("TECHNICIAN", "POST", "/api/workshop/order/1/qc"));
-        assertFalse(RolePolicy.allowed("TECHNICIAN", "GET", "/api/network/dealer/page"));
+        assertTrue(RolePolicy.allowed("TECHNICIAN", "GET", "/api/network/dealer/page"));
+        assertTrue(RolePolicy.allowed("TECHNICIAN", "GET", "/api/dashboard"));
+        assertFalse(RolePolicy.allowed("TECHNICIAN", "POST", "/api/network/dealer"));
+        assertFalse(RolePolicy.allowed("TECHNICIAN", "GET", "/api/invoice/page"));
         assertFalse(RolePolicy.allowed("TECHNICIAN", "POST", "/api/workshop/order"));
         assertFalse(RolePolicy.allowed("TECHNICIAN", "POST", "/api/workshop/order/1/settle"));
         assertFalse(RolePolicy.allowed("TECHNICIAN", "POST", "/api/customer/customer"));

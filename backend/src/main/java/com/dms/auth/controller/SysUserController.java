@@ -2,6 +2,7 @@ package com.dms.auth.controller;
 
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.dms.auth.LoginUser;
+import com.dms.auth.Role;
 import com.dms.auth.UserContext;
 import com.dms.auth.entity.SysUser;
 import com.dms.auth.mapper.SysUserMapper;
@@ -35,6 +36,9 @@ public class SysUserController extends BaseCrudController<SysUser, SysUserMapper
             if (Boolean.FALSE.equals(entity.getEnabled())) {
                 throw new BizException("不能禁用当前登录账号");
             }
+        }
+        if (Role.of(entity.getRole()) == null) {
+            throw new BizException("角色不合法");
         }
         if (StringUtils.isNotBlank(entity.getPassword())) {
             entity.setPasswordHash(authService.hashPassword(entity.getPassword()));

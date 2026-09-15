@@ -147,6 +147,98 @@ class AuthDataScopeTest {
     }
 
     @Test
+    void crossDealerAnswersDenied() {
+        String admin = login("admin", "123456");
+        Map<String, Object> sv = new HashMap<>();
+        sv.put("surveyNo", "SV-IT-" + System.currentTimeMillis());
+        sv.put("templateCode", "SV01");
+        sv.put("dealerCode", "D001");
+        sv.put("customerId", 1);
+        sv.put("status", "PENDING");
+        ResponseEntity<Map> created =
+                http.exchange("/api/survey/record", HttpMethod.POST, auth(admin, sv), Map.class);
+        Long sid = ((Number) ((Map) created.getBody().get("data")).get("id")).longValue();
+
+        ResponseEntity<Map> qs =
+                http.exchange(
+                        "/api/survey/question/list?size=50&templateId=1",
+                        HttpMethod.GET,
+                        auth(admin),
+                        Map.class);
+        java.util.List<Object> questions =
+                (java.util.List<Object>) qs.getBody().get("data");
+        java.util.List<Map<String, Object>> answers = new java.util.ArrayList<>();
+        for (Object q : questions) {
+            Map<String, Object> a = new HashMap<>();
+            a.put("questionId", ((Number) ((Map) q).get("id")).longValue());
+            a.put("score", 8);
+            answers.add(a);
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("answers", answers);
+        ResponseEntity<Map> answered =
+                http.exchange("/api/survey/" + sid + "/answer", HttpMethod.POST, auth(admin, body), Map.class);
+        assertEquals("ANSWERED", ((Map) answered.getBody().get("data")).get("status"));
+
+        ResponseEntity<Map> mine =
+                http.exchange(
+                        "/api/survey/record/" + sid + "/answers",
+                        HttpMethod.GET,
+                        auth(login("d001sa", "123456")),
+                        Map.class);
+        assertEquals(0, ((Number) mine.getBody().get("code")).intValue());
+        assertEquals(5, ((java.util.List<Object>) mine.getBody().get("data")).size());
+
+        ResponseEntity<Map> denied =
+                http.exchange(
+                        "/api/survey/record/" + sid + "/answers",
+                        HttpMethod.GET,
+                        auth(login("d002mgr", "123456")),
+                        Map.class);
+        assertEquals(400, ((Number) denied.getBody().get("code")).intValue());
+        assertTrue(String.valueOf(denied.getBody().get("msg")).contains("无权访问"));
+    }
+
+    @Test
+    void loginLockout() {
+        String user = "ghost-" + System.currentTimeMillis();
+        Map<String, String> bad = new HashMap<>();
+        bad.put("username", user);
+        bad.put("password", "nope");
+        for (int i = 0; i < 5; i++) {
+            ResponseEntity<Map> r = http.postForEntity("/api/auth/login", bad, Map.class);
+            assertEquals("用户名或密码错误", r.getBody().get("msg"));
+        }
+        ResponseEntity<Map> r = http.postForEntity("/api/auth/login", bad, Map.class);
+        assertTrue(String.valueOf(r.getBody().get("msg")).contains("次数过多"));
+    }
+
+    @Test
+    void disabledUserToken401() {
+        String admin = login("admin", "123456");
+        String uname = "itoff" + System.currentTimeMillis() % 100000;
+        Map<String, Object> nu = new HashMap<>();
+        nu.put("username", uname);
+        nu.put("realName", "测试禁用");
+        nu.put("role", "ADVISOR");
+        nu.put("dealerCode", "D001");
+        nu.put("password", "123456");
+        ResponseEntity<Map> c =
+                http.exchange("/api/auth/user", HttpMethod.POST, auth(admin, nu), Map.class);
+        Long uid = ((Number) ((Map) c.getBody().get("data")).get("id")).longValue();
+        String tok = login(uname, "123456");
+
+        nu.put("id", uid);
+        nu.put("enabled", false);
+        http.exchange("/api/auth/user/" + uid, HttpMethod.PUT, auth(admin, nu), Map.class);
+
+        ResponseEntity<Map> me =
+                http.exchange("/api/auth/me", HttpMethod.GET, auth(tok), Map.class);
+        assertEquals(401, me.getStatusCodeValue());
+        assertTrue(String.valueOf(me.getBody().get("msg")).contains("禁用"));
+    }
+
+    @Test
     void meAndPassword() {
         String sa = login("d001sa", "123456");
         ResponseEntity<Map> me =

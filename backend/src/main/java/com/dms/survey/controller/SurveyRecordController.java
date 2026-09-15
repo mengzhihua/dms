@@ -1,7 +1,9 @@
 package com.dms.survey.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
+import com.dms.common.BizException;
 import com.dms.common.R;
 import com.dms.survey.entity.Survey;
 import com.dms.survey.entity.SurveyAnswer;
@@ -25,6 +27,11 @@ public class SurveyRecordController extends BaseCrudController<Survey, SurveyMap
 
     @GetMapping("/{id}/answers")
     public R<List<SurveyAnswer>> answers(@PathVariable Long id) {
+        Survey s = mapper.selectById(id);
+        if (s == null) {
+            throw new BizException("调研不存在");
+        }
+        DataScope.check(s.getDealerCode());
         return R.ok(answerMapper.selectList(new QueryWrapper<SurveyAnswer>().eq("survey_id", id)));
     }
 
