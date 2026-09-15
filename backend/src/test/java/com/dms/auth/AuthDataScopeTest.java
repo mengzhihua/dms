@@ -3,6 +3,7 @@ package com.dms.auth;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.dms.DmsApplication;
+import com.dms.auth.service.AuthService;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.springframework.http.ResponseEntity;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AuthDataScopeTest {
     @Autowired TestRestTemplate http;
+    @Autowired AuthService authService;
 
     @SuppressWarnings("unchecked")
     private String login(String username, String password) {
@@ -211,6 +213,44 @@ class AuthDataScopeTest {
         }
         ResponseEntity<Map> r = http.postForEntity("/api/auth/login", bad, Map.class);
         assertTrue(String.valueOf(r.getBody().get("msg")).contains("次数过多"));
+    }
+
+    @Test
+    void blankUsername400() {
+        Map<String, String> body = new HashMap<>();
+        body.put("username", "");
+        body.put("password", "x");
+        ResponseEntity<Map> r = http.postForEntity("/api/auth/login", body, Map.class);
+        assertEquals(400, ((Number) r.getBody().get("code")).intValue());
+        assertTrue(String.valueOf(r.getBody().get("msg")).contains("必填"));
+
+        Map<String, String> body2 = new HashMap<>();
+        body2.put("username", "admin");
+        body2.put("password", "");
+        ResponseEntity<Map> r2 = http.postForEntity("/api/auth/login", body2, Map.class);
+        assertEquals(400, ((Number) r2.getBody().get("code")).intValue());
+    }
+
+    @Test
+    void lockExpiryResetsCount() throws InterruptedException {
+        String user = "ghost2-" + System.currentTimeMillis();
+        Map<String, String> bad = new HashMap<>();
+        bad.put("username", user);
+        bad.put("password", "nope");
+        authService.setLockMillisForTest(150);
+        try {
+            for (int i = 0; i < 5; i++) {
+                ResponseEntity<Map> r = http.postForEntity("/api/auth/login", bad, Map.class);
+                assertEquals("用户名或密码错误", r.getBody().get("msg"));
+            }
+            Thread.sleep(300);
+            // 锁定已过期，计数清零，应回到普通错误而不是“次数过多”
+            ResponseEntity<Map> r = http.postForEntity("/api/auth/login", bad, Map.class);
+            assertEquals("用户名或密码错误", r.getBody().get("msg"));
+        } finally {
+            authService.setLockMillisForTest(15 * 60 * 1000L);
+            authService.clearLock(user);
+        }
     }
 
     @Test

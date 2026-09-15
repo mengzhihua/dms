@@ -27,11 +27,9 @@ public class JwtService {
             log.warn("未配置 dms.auth.jwt-secret，已生成随机密钥，重启后旧 token 失效");
         } else {
             bytes = secret.getBytes(StandardCharsets.UTF_8);
-        }
-        if (bytes.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(bytes, 0, padded, 0, bytes.length);
-            bytes = padded;
+            if (bytes.length < 32) {
+                throw new IllegalStateException("dms.auth.jwt-secret 至少 32 字节");
+            }
         }
         this.key = Keys.hmacShaKeyFor(bytes);
         this.expireMillis = expireHours * 3600_000L;

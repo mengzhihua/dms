@@ -18,15 +18,18 @@ import org.springframework.stereotype.Service;
 public class AuthService {
     private static final int MAX_FAILURES = 5;
     private static final long LOCK_MILLIS = 15 * 60 * 1000L;
+    private static final int MAX_ENTRIES = 10_000;
 
     private final SysUserMapper userMapper;
     private final JwtService jwtService;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final ConcurrentHashMap<String, FailInfo> failures = new ConcurrentHashMap<>();
+    private volatile long lockMillis = LOCK_MILLIS;
 
     private static class FailInfo {
         int count;
         long lockUntil;
+        long lastFailure;
     }
 
     public AuthService(SysUserMapper userMapper, JwtService jwtService) {
@@ -39,9 +42,26 @@ public class AuthService {
     }
 
     public Map<String, Object> login(String username, String password) {
+        if (username == null
+                || username.trim().isEmpty()
+                || password == null
+                || password.isEmpty()) {
+            throw new BizException(400, "用户名和密码必填");
+        }
         FailInfo fi = failures.get(username);
-        if (fi != null && fi.lockUntil > System.currentTimeMillis()) {
-            throw new BizException(401, "登录失败次数过多，请15分钟后再试");
+        if (fi != null) {
+            long now = System.currentTimeMillis();
+            if (fi.lockUntil > now) {
+                throw new BizException(401, "登录失败次数过多，请15分钟后再试");
+            }
+            if (fi.lockUntil > 0) {
+                synchronized (fi) {
+                    if (fi.lockUntil > 0 && fi.lockUntil <= now) {
+                        fi.count = 0;
+                        fi.lockUntil = 0;
+                    }
+                }
+            }
         }
         SysUser u =
                 userMapper.selectOne(
@@ -99,15 +119,48 @@ public class AuthService {
         FailInfo fi = failures.computeIfAbsent(username, k -> new FailInfo());
         synchronized (fi) {
             fi.count++;
+            fi.lastFailure = System.currentTimeMillis();
             if (fi.count >= MAX_FAILURES) {
-                fi.lockUntil = System.currentTimeMillis() + LOCK_MILLIS;
+                fi.lockUntil = fi.lastFailure + lockMillis;
             }
+        }
+        evictIfNeeded();
+    }
+
+    private void evictIfNeeded() {
+        if (failures.size() <= MAX_ENTRIES) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        failures
+                .entrySet()
+                .removeIf(
+                        e -> e.getValue().lockUntil <= now
+                                && now - e.getValue().lastFailure > lockMillis);
+        while (failures.size() > MAX_ENTRIES) {
+            String oldest = null;
+            long oldestTs = Long.MAX_VALUE;
+            for (Map.Entry<String, FailInfo> e : failures.entrySet()) {
+                if (e.getValue().lastFailure < oldestTs) {
+                    oldestTs = e.getValue().lastFailure;
+                    oldest = e.getKey();
+                }
+            }
+            if (oldest == null) {
+                break;
+            }
+            failures.remove(oldest);
         }
     }
 
     /** 测试用：清空锁定状态。 */
     public void clearLock(String username) {
         failures.remove(username);
+    }
+
+    /** 测试用：调整锁定时长。 */
+    public void setLockMillisForTest(long ms) {
+        this.lockMillis = ms;
     }
 
     private LoginUser toLoginUser(SysUser u) {
