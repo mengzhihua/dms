@@ -97,7 +97,7 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 
 经销商备件从 OMS 中心仓补货：DMS 作为 OMS 的一个渠道店铺（`shopCode=SHOP-DMS01`，OMS 侧 `data.sql` 已预置渠道 `DMS`、店铺与 `P0001~P0030` 备件 SKU/`WH-SH` 库存）。
 
-- 单据：`dms_replenish_order`，状态机 `DRAFT → PUSHING(建单中) → PUSHED → SHIPPED → RECEIVED`，`DRAFT/PUSHED → CANCELLED`（`PUSHING` 不可取消，建单失败回退 `DRAFT`）；`channelOrderNo = replenishNo`，OMS 按 `shopCode+channelOrderNo` 幂等，重复下单不会产生第二张 OMS 订单。
+- 单据：`dms_replenish_order`，状态机 `DRAFT → PUSHING(建单中) → PUSHED → SHIPPED → RECEIVED`，`DRAFT/PUSHED → CANCELLED`（`PUSHING` 不可取消，建单失败回退 `DRAFT`；进程中断遗留的 `PUSHING` 会在启动时、以及超过 2 分钟后的「全部同步」时按 `shopCode+replenishNo` 反查 OMS 恢复：已建单转 `PUSHED`，未建单回退 `DRAFT`）；`channelOrderNo = replenishNo`，OMS 按 `shopCode+channelOrderNo` 幂等，重复下单不会产生第二张 OMS 订单。
 - 下单：`POST /api/oms/replenish/draft {dealerCode, items:[{partNo,qty}]}` 或 `POST /api/oms/replenish/from-shortage?dealerCode=`（按缺货预警补到 2×minStock），再 `POST /api/oms/replenish/{id}/push` → OMS `POST /api/open/channel/orders`（收货人取经销商名称/电话/地址，SKU 直接使用备件号）。
 - 状态同步（双通道）：
   - 拉：`POST /api/oms/replenish/{id}/sync`、`POST /api/oms/replenish/sync-all` → OMS `GET /api/open/channel/orders/{shopCode}/{channelOrderNo}`；

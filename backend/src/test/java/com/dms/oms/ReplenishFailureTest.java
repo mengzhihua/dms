@@ -3,6 +3,7 @@ package com.dms.oms;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,6 +12,7 @@ import com.dms.common.BizException;
 import com.dms.oms.client.OmsClient;
 import com.dms.oms.client.OmsException;
 import com.dms.oms.entity.ReplenishOrder;
+import com.dms.oms.mapper.ReplenishOrderMapper;
 import com.dms.oms.service.ReplenishService;
 import com.dms.parts.service.PartStockService;
 import java.util.Arrays;
@@ -36,6 +38,7 @@ class ReplenishFailureTest {
     @Autowired ReplenishService service;
     @Autowired MockMvc mvc;
     @Autowired PartStockService stockService;
+    @Autowired ReplenishOrderMapper mapper;
     @MockBean OmsClient oms;
 
     private static Map<String, Object> item(String partNo, int qty) {
@@ -122,6 +125,73 @@ class ReplenishFailureTest {
         assertEquals("COMPLETED", r.getOmsStatus());
         assertEquals("NEW", r.getTrackingNo());
         assertEquals(before + 1, stockService.available("D001", "P0006"));
+    }
+
+    @Test
+    void completedStillReceivesWhenAnotherThreadAlreadyMovedToShipped() {
+        Map<String, Object> created = new LinkedHashMap<>();
+        created.put("orderNo", "SO-4");
+        created.put("status", "CREATED");
+        when(oms.createOrder(any())).thenReturn(created);
+        ReplenishOrder o = service.push(
+                service.create("D001", Collections.singletonList(item("P0007", 2)), null, null).getId());
+
+        Map<String, Object> completed = new LinkedHashMap<>();
+        completed.put("orderNo", "SO-4");
+        completed.put("status", "COMPLETED");
+        // 轮询线程已读到 PUSHED,等待 OMS 返回 COMPLETED 期间,SHIPPED 回推先完成 PUSHED->SHIPPED
+        when(oms.getOrder(anyString(), anyString())).thenAnswer(inv -> {
+            Map<String, Object> evt = new LinkedHashMap<>();
+            evt.put("channelOrderNo", o.getReplenishNo());
+            evt.put("status", "SHIPPED");
+            assertEquals(ReplenishService.SHIPPED, service.onOmsEvent(evt).getStatus());
+            return completed;
+        });
+        int before = stockService.available("D001", "P0007");
+        ReplenishOrder r = service.sync(o.getId());
+        assertEquals(ReplenishService.RECEIVED, r.getStatus());
+        assertEquals(before + 2, stockService.available("D001", "P0007"));
+        // 重复 COMPLETED 不再入库
+        assertEquals(ReplenishService.RECEIVED, service.sync(o.getId()).getStatus());
+        assertEquals(before + 2, stockService.available("D001", "P0007"));
+    }
+
+    @Test
+    void interruptedPushingRecoveredFromOms() {
+        ReplenishOrder exists = service.create("D001", Collections.singletonList(item("P0008", 1)), null, null);
+        ReplenishOrder missing = service.create("D001", Collections.singletonList(item("P0009", 1)), null, null);
+        // 模拟进程在 createOrder 前后中断:本地停在 PUSHING
+        assertEquals(1, mapper.transit(exists.getId(), ReplenishService.DRAFT, ReplenishService.PUSHING));
+        assertEquals(1, mapper.transit(missing.getId(), ReplenishService.DRAFT, ReplenishService.PUSHING));
+
+        Map<String, Object> remote = new LinkedHashMap<>();
+        remote.put("orderNo", "SO-5");
+        remote.put("status", "AUDITED");
+        when(oms.getOrder(anyString(), eq(exists.getReplenishNo()))).thenReturn(remote);
+        when(oms.getOrder(anyString(), eq(missing.getReplenishNo()))).thenReturn(null);
+
+        // 刚进入 PUSHING 未超时:syncAll 不干预正在进行的下单
+        service.syncAll();
+        assertEquals(ReplenishService.PUSHING, service.get(exists.getId()).getStatus());
+        assertThrows(BizException.class, () -> service.push(exists.getId()));
+        assertThrows(BizException.class, () -> service.cancel(exists.getId(), "x"));
+
+        // 启动恢复:OMS 已建单 -> PUSHED 并补写元数据;OMS 无单 -> 回退 DRAFT
+        assertEquals(2, service.recoverPushing(false));
+        ReplenishOrder e = service.get(exists.getId());
+        assertEquals(ReplenishService.PUSHED, e.getStatus());
+        assertEquals("SO-5", e.getOmsOrderNo());
+        assertEquals("AUDITED", e.getOmsStatus());
+        assertNotNull(e.getPushedAt());
+        ReplenishOrder m = service.get(missing.getId());
+        assertEquals(ReplenishService.DRAFT, m.getStatus());
+        assertNotNull(m.getLastError());
+        // 回退后可重新下单
+        Map<String, Object> created = new LinkedHashMap<>();
+        created.put("orderNo", "SO-6");
+        created.put("status", "CREATED");
+        when(oms.createOrder(any())).thenReturn(created);
+        assertEquals(ReplenishService.PUSHED, service.push(missing.getId()).getStatus());
     }
 
     @Test
