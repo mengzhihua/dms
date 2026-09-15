@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS dms_replenish_order (
     replenish_no VARCHAR(40) NOT NULL UNIQUE,
     dealer_code VARCHAR(32) NOT NULL,
     shop_code VARCHAR(32),
-    status VARCHAR(16) NOT NULL,             -- DRAFT/PUSHED/SHIPPED/RECEIVED/CANCELLED
+    status VARCHAR(16) NOT NULL,             -- DRAFT/PUSHING/PUSHED/SHIPPED/RECEIVED/CANCELLED
     source VARCHAR(16),                      -- MANUAL/SHORTAGE
     items VARCHAR(4000),                     -- JSON [{partNo,name,qty,price}]
     oms_order_no VARCHAR(40),

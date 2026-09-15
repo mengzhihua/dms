@@ -74,12 +74,12 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 
 经销商备件从 OMS 中心仓补货：DMS 作为 OMS 的一个渠道店铺（`shopCode=SHOP-DMS01`，OMS 侧 `data.sql` 已预置渠道 `DMS`、店铺与 `P0001~P0030` 备件 SKU/`WH-SH` 库存）。
 
-- 单据：`dms_replenish_order`，状态机 `DRAFT → PUSHED → SHIPPED → RECEIVED`，`DRAFT/PUSHED → CANCELLED`；`channelOrderNo = replenishNo`，OMS 按 `shopCode+channelOrderNo` 幂等，重复下单不会产生第二张 OMS 订单。
+- 单据：`dms_replenish_order`，状态机 `DRAFT → PUSHING(建单中) → PUSHED → SHIPPED → RECEIVED`，`DRAFT/PUSHED → CANCELLED`（`PUSHING` 不可取消，建单失败回退 `DRAFT`）；`channelOrderNo = replenishNo`，OMS 按 `shopCode+channelOrderNo` 幂等，重复下单不会产生第二张 OMS 订单。
 - 下单：`POST /api/oms/replenish/draft {dealerCode, items:[{partNo,qty}]}` 或 `POST /api/oms/replenish/from-shortage?dealerCode=`（按缺货预警补到 2×minStock），再 `POST /api/oms/replenish/{id}/push` → OMS `POST /api/open/channel/orders`（收货人取经销商名称/电话/地址，SKU 直接使用备件号）。
 - 状态同步（双通道）：
   - 拉：`POST /api/oms/replenish/{id}/sync`、`POST /api/oms/replenish/sync-all` → OMS `GET /api/open/channel/orders/{shopCode}/{channelOrderNo}`；
   - 推：OMS 发货/签收/取消时回调 `POST /api/open/oms/orders/status`（必须配置 `dms.oms.callback-key` 并携带匹配的 `X-Api-Key`，未配置时拒绝所有回推）。
-- 入库：OMS `COMPLETED`（签收）时按实发数量 `shippedQty` 入库到经销商 `dms.oms.receive-location` 库位、批次号=OMS 单号；`SHIPPED→RECEIVED` 为条件更新，回推与轮询并发/重复也只入库一次；同一备件多行会在建草稿时合并。补货单不支持通用 `POST/PUT/DELETE`，只能经 `draft/push/sync/cancel` 变更。
+- 入库：OMS `COMPLETED`（签收）时按实发数量 `shippedQty` 入库到经销商 `dms.oms.receive-location` 库位、批次号=OMS 单号；`SHIPPED→RECEIVED` 为条件更新，回推与轮询并发/重复也只入库一次；同一备件多行会在建草稿时合并（溢出拒绝）；OMS 元数据（`omsStatus`/物流）仅在本地单在途且快照不早于已记录 OMS 状态时更新，旧轮询不会覆盖新回推。补货单不支持通用 `POST/PUT/DELETE`，只能经 `draft/push/sync/cancel` 变更。
 - 取消：`POST /api/oms/replenish/{id}/cancel` 仅 `DRAFT/PUSHED` 可取消（OMS 已发货不可取消）。
 - 库存参考：`GET /api/oms/replenish/oms-inventory?partNos=P0001,P0002` → OMS 渠道可售量。
 - 配置（`dms.oms.*`）：`DMS_OMS_MOCK`（默认 `true`，内存模拟 OMS，每次查询状态前进一步；为 `false` 时必须配置 `DMS_OMS_URL`，否则启动失败）、`DMS_OMS_URL`、`DMS_OMS_API_KEY`（OMS 的 `oms.open.api-key`）、`DMS_OMS_CALLBACK_KEY`、`shop-code`、`receive-location`、`timeout-ms`。
