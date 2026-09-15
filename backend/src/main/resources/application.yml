@@ -35,7 +35,7 @@ logging:
     com.dms: info
 dms:
   auth:
-    jwt-secret: dev-secret-key-for-dms-jwt-signing-please-change-in-production
+    jwt-secret: ${DMS_JWT_SECRET:}    # 生产必须配置；留空则启动时生成随机密钥，重启后旧 token 失效
     expire-hours: 12
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173

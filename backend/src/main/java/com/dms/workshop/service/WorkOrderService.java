@@ -225,6 +225,10 @@ public class WorkOrderService {
     @Transactional
     public void removeLabor(Long orderId, Long lineId) {
         ensureEditable(mustGet(orderId));
+        WorkOrderLabor line = laborMapper.selectById(lineId);
+        if (line != null && !orderId.equals(line.getOrderId())) {
+            throw new BizException("明细不属于该工单");
+        }
         laborMapper.deleteById(lineId);
     }
 
@@ -233,6 +237,9 @@ public class WorkOrderService {
         WorkOrder o = mustGet(orderId);
         ensureEditable(o);
         WorkOrderPart p = partLineMapper.selectById(lineId);
+        if (p != null && !orderId.equals(p.getOrderId())) {
+            throw new BizException("明细不属于该工单");
+        }
         if (p != null && Boolean.TRUE.equals(p.getReservedFlag())) {
             stockService.release(o.getDealerCode(), p.getPartNo(), p.getQty(), "WO", o.getOrderNo());
         }

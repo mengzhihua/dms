@@ -15,7 +15,7 @@ public class SysUser extends BaseEntity {
     @NotBlank(message = "用户名必填")
     private String username;
 
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
 
     @NotBlank(message = "姓名必填")

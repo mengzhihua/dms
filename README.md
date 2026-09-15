@@ -60,7 +60,8 @@ scripts/   smoke.sh 全链路冒烟脚本
 - 数据范围：非全网角色（ADMIN/OEM 之外）仅能访问 `dealer_code` = 本店的记录；跨店读取/操作返回 400「无权访问其他经销商数据」；新建记录自动归属本店。
 - 用户管理：`/api/auth/user` CRUD（仅 ADMIN），支持新建时传 `password` 明文（后端 BCrypt 落库，`passwordHash` 永不回传），不能删除/禁用自己。
 - 接口：`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout`、`PUT /api/auth/password`。
-- 配置：`dms.auth.jwt-secret`（HS256 密钥，生产必须修改）、`dms.auth.expire-hours`（默认 12）。
+- 配置：`dms.auth.jwt-secret`（HS256 密钥，经环境变量 `DMS_JWT_SECRET` 注入；未配置时启动生成随机密钥并告警，重启后旧 token 全部失效）、`dms.auth.expire-hours`（默认 12）。
+- 登录锁定：同一用户名连续 5 次失败锁定 15 分钟。
 - 权限矩阵见 `RolePolicy`（基于 AntPathMatcher 的角色→路径表）。
 
 ## 工单状态机

@@ -51,7 +51,7 @@ async function submit() {
     const res = await http.post('/auth/login', form)
     setAuth(res.token, res.user)
     ElMessage.success('登录成功')
-    router.push(route.query.redirect ? decodeURIComponent(route.query.redirect) : '/')
+    router.push(route.query.redirect || '/')
   } catch (e) {
     if (!e.toasted) {
       ElMessage.error(e.message || '登录失败')

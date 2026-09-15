@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import com.dms.common.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dms.oms.client.OmsClient;
 import com.dms.oms.client.OmsException;
 import com.dms.oms.entity.ReplenishOrder;
@@ -203,15 +202,21 @@ class ReplenishFailureTest {
                 .andExpect(jsonPath("$.code").value(400));
     }
 
+    private String adminToken() throws Exception {
+        String body =
+                mvc.perform(post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\":\"admin\",\"password\":\"123456\"}"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(body, "$.data.token");
+    }
+
     @Test
     void genericWriteEndpointsDisabled() throws Exception {
-        String login = mvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"123456\"}"))
-                .andReturn().getResponse().getContentAsString();
-        String token = new ObjectMapper().readTree(login).path("data").path("token").asText();
         mvc.perform(post("/api/oms/replenish")
-                        .header("Authorization", "Bearer " + token)
+                        .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"replenishNo\":\"RPL-HACK\",\"dealerCode\":\"D001\",\"status\":\"SHIPPED\"}"))
                 .andExpect(jsonPath("$.code").value(400));

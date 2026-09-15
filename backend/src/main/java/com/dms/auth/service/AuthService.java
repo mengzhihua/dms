@@ -10,14 +10,24 @@ import com.dms.auth.mapper.SysUserMapper;
 import com.dms.common.BizException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
+    private static final int MAX_FAILURES = 5;
+    private static final long LOCK_MILLIS = 15 * 60 * 1000L;
+
     private final SysUserMapper userMapper;
     private final JwtService jwtService;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+    private final ConcurrentHashMap<String, FailInfo> failures = new ConcurrentHashMap<>();
+
+    private static class FailInfo {
+        int count;
+        long lockUntil;
+    }
 
     public AuthService(SysUserMapper userMapper, JwtService jwtService) {
         this.userMapper = userMapper;
@@ -29,6 +39,10 @@ public class AuthService {
     }
 
     public Map<String, Object> login(String username, String password) {
+        FailInfo fi = failures.get(username);
+        if (fi != null && fi.lockUntil > System.currentTimeMillis()) {
+            throw new BizException(401, "登录失败次数过多，请15分钟后再试");
+        }
         SysUser u =
                 userMapper.selectOne(
                         new QueryWrapper<SysUser>().eq("username", username).last("LIMIT 1"));
@@ -37,8 +51,14 @@ public class AuthService {
                 || u.getPasswordHash() == null
                 || password == null
                 || !encoder.matches(password, u.getPasswordHash())) {
+            recordFailure(username);
             throw new BizException(401, "用户名或密码错误");
         }
+        if (Role.of(u.getRole()) == null) {
+            recordFailure(username);
+            throw new BizException(401, "用户名或密码错误");
+        }
+        failures.remove(username);
         LoginUser login = toLoginUser(u);
         Map<String, Object> m = new HashMap<>();
         m.put("token", jwtService.issue(login));
@@ -73,6 +93,21 @@ public class AuthService {
         }
         u.setPasswordHash(encoder.encode(newPwd));
         userMapper.updateById(u);
+    }
+
+    private void recordFailure(String username) {
+        FailInfo fi = failures.computeIfAbsent(username, k -> new FailInfo());
+        synchronized (fi) {
+            fi.count++;
+            if (fi.count >= MAX_FAILURES) {
+                fi.lockUntil = System.currentTimeMillis() + LOCK_MILLIS;
+            }
+        }
+    }
+
+    /** 测试用：清空锁定状态。 */
+    public void clearLock(String username) {
+        failures.remove(username);
     }
 
     private LoginUser toLoginUser(SysUser u) {
