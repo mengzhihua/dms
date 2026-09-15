@@ -29,6 +29,13 @@ class JwtServiceTest {
     }
 
     @Test
+    void shortSecretThrows() {
+        IllegalStateException e =
+                assertThrows(IllegalStateException.class, () -> new JwtService("short", 12));
+        assertTrue(e.getMessage().contains("32"));
+    }
+
+    @Test
     void tamperedTokenRejected() {
         JwtService s = new JwtService(SECRET, 12);
         String token = s.issue(new LoginUser(1L, "admin", Role.ADMIN, null));
