@@ -1,4 +1,4 @@
-package com.dms.integration;
+package com.dms.integration.controller;
 
 import com.dms.common.BizException;
 import com.dms.common.R;
