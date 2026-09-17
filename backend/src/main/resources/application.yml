@@ -54,6 +54,8 @@ dms:
     receive-location: RCV-01            # 补货入库默认库位
     timeout-ms: 5000
     callback-key: ${DMS_OMS_CALLBACK_KEY:}  # 非空时 OMS 回推 /api/open/oms/orders/status 需携带同值 X-Api-Key
+  open:
+    api-key: ${DMS_OPEN_API_KEY:dms-open-key}
 ---
 spring:
   config:
