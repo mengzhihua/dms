@@ -1,4 +1,4 @@
-package com.dms.dashboard;
+package com.dms.dashboard.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.dms.auth.DataScope;
