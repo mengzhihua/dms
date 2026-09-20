@@ -292,7 +292,9 @@ public class NetworkService {
             o.setPaymentType("FULL");
             o.setLoanAmount(BigDecimal.ZERO);
         }
-        o.setRemark(str(body.get("remark")));
+        if (body.get("remark") != null) {
+            o.setRemark(str(body.get("remark")));
+        }
         salesOrderMapper.updateById(o);
         return o;
     }
@@ -486,7 +488,8 @@ public class NetworkService {
                 throw new BizException("已开票订单请先红冲发票");
             }
         }
-        if ("ALLOCATED".equals(o.getStatus()) && o.getVin() != null) {
+        if (("ALLOCATED".equals(o.getStatus()) || "INVOICED".equals(o.getStatus()))
+                && o.getVin() != null) {
             VehicleStock s =
                     stockMapper.selectOne(new QueryWrapper<VehicleStock>().eq("vin", o.getVin()));
             if (s != null) {
