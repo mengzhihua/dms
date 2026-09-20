@@ -41,6 +41,14 @@ scripts/   smoke.sh 全链路冒烟脚本
 
 - 冒烟：`bash scripts/smoke.sh`（后端启动后执行，覆盖工单全流程+发票+调研+销售流程，输出 SMOKE OK）
 
+### 生产部署
+
+- 启用 `prod` profile：`java -jar dms-backend.jar --spring.profiles.active=prod`（可叠加 MySQL：`prod,mysql`）。
+- `prod` 下不装载演示数据/演示账号：仅初始化税率配置与满意度模板（`data-prod.sql`），并关闭 H2 控制台。
+- 首次启动（`sys_user` 为空）自动创建 admin/ADMIN：密码取环境变量 `DMS_ADMIN_PASSWORD`；未配置则随机生成 16 位密码并以 WARN 打印一次日志（`首次启动已创建 admin，初始密码: xxx`），请立即修改。
+- 生产必须配置 `DMS_JWT_SECRET`（至少 32 字节）。
+- 演示账号（admin/oem/d001* 等，密码 `123456`）仅存在于默认开发 profile 的 `data.sql` 中，prod 下不可用。
+
 ## 登录与权限（RBAC）
 
 所有 `/api/**` 接口（除 `/api/auth/login`、`/api/invoice/callback/**`、`/api/open/**`）需携带 `Authorization: Bearer <token>`（JWT，HS256）。前端打开即跳转 `/login`。

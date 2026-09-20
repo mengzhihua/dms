@@ -37,6 +37,7 @@ dms:
   auth:
     jwt-secret: ${DMS_JWT_SECRET:}    # 生产必须配置；留空则启动时生成随机密钥，重启后旧 token 失效
     expire-hours: 12
+    bootstrap-admin-password: ${DMS_ADMIN_PASSWORD:}  # 首次启动(sys_user 为空)创建 admin 的密码；留空则随机生成并打印日志
     ip-max-per-minute: ${DMS_AUTH_IP_MAX_PER_MINUTE:30}  # 每 IP 每分钟登录限流；0 关闭
     captcha-mode: ${DMS_AUTH_CAPTCHA_MODE:ADAPTIVE}      # OFF | ADAPTIVE(失败>=3次后要求) | ALWAYS
     trust-proxy: ${DMS_AUTH_TRUST_PROXY:false}           # true 时用 X-Forwarded-For 首个 IP 作为客户端地址
@@ -62,6 +63,17 @@ dms:
     callback-key: ${DMS_OMS_CALLBACK_KEY:}  # 非空时 OMS 回推 /api/open/oms/orders/status 需携带同值 X-Api-Key
   open:
     api-key: ${DMS_OPEN_API_KEY:dms-open-key}
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  sql:
+    init:
+      data-locations: classpath:data-prod.sql
+  h2:
+    console:
+      enabled: false
 ---
 spring:
   config:

@@ -49,3 +49,14 @@ dms:
     receive-location: RCV-01
     timeout-ms: 5000
     callback-key: ""
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  sql:
+    init:
+      data-locations: classpath:data-prod.sql
+  h2:
+    console:
+      enabled: false
