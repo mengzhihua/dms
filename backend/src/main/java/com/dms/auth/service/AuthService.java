@@ -76,10 +76,7 @@ public class AuthService {
         long now = System.currentTimeMillis();
         if (username != null && !username.trim().isEmpty()) {
             FailInfo fi = failures.get(username);
-            if (fi != null && fi.count >= 3 && fi.lockUntil <= now) {
-                return true;
-            }
-            if (fi != null && fi.count >= 3 && fi.lockUntil > now) {
+            if (fi != null && fi.count >= 3) {
                 return true;
             }
         }
@@ -212,7 +209,7 @@ public class AuthService {
             String oldest = null;
             long oldestTs = Long.MAX_VALUE;
             for (Map.Entry<String, FailInfo> e : failures.entrySet()) {
-                if (e.getValue().lastFailure < oldestTs) {
+                if (e.getValue().lockUntil <= now && e.getValue().lastFailure < oldestTs) {
                     oldestTs = e.getValue().lastFailure;
                     oldest = e.getKey();
                 }
