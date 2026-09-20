@@ -43,6 +43,7 @@ http.interceptors.response.use(
     const body = response.data
     if (body && body.code !== undefined && body.code !== 0) {
       const err = new Error(body.msg)
+      err.code = body.code
       if (body.code === 401) {
         // 已在登录页时（登录失败）不跳转，交由页面自行提示
         if (router.currentRoute.value.path !== '/login') {

@@ -1,7 +1,9 @@
 package com.dms.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.CaptchaService;
 import com.dms.auth.JwtService;
+import com.dms.auth.LoginRateLimiter;
 import com.dms.auth.LoginUser;
 import com.dms.auth.Role;
 import com.dms.auth.UserContext;
@@ -11,6 +13,8 @@ import com.dms.common.BizException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -20,11 +24,23 @@ public class AuthService {
     private static final long LOCK_MILLIS = 15 * 60 * 1000L;
     private static final int MAX_ENTRIES = 10_000;
 
+    public static final int CODE_CAPTCHA_REQUIRED = 4001;
+
     private final SysUserMapper userMapper;
     private final JwtService jwtService;
+    private final LoginRateLimiter rateLimiter;
+    private final CaptchaService captchaService;
+    private final String captchaMode;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final ConcurrentHashMap<String, FailInfo> failures = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, IpFailInfo> ipFailures = new ConcurrentHashMap<>();
     private volatile long lockMillis = LOCK_MILLIS;
+
+    private static class IpFailInfo {
+        java.util.concurrent.atomic.AtomicInteger count =
+                new java.util.concurrent.atomic.AtomicInteger();
+        volatile long lastFailure;
+    }
 
     private static class FailInfo {
         int count;
@@ -32,21 +48,69 @@ public class AuthService {
         long lastFailure;
     }
 
-    public AuthService(SysUserMapper userMapper, JwtService jwtService) {
+    public AuthService(
+            SysUserMapper userMapper,
+            JwtService jwtService,
+            LoginRateLimiter rateLimiter,
+            CaptchaService captchaService,
+            @Value("${dms.auth.captcha-mode:ADAPTIVE}") String captchaMode) {
         this.userMapper = userMapper;
         this.jwtService = jwtService;
+        this.rateLimiter = rateLimiter;
+        this.captchaService = captchaService;
+        this.captchaMode = captchaMode == null ? "ADAPTIVE" : captchaMode.trim().toUpperCase();
     }
 
     public String hashPassword(String raw) {
         return encoder.encode(raw);
     }
 
-    public Map<String, Object> login(String username, String password) {
+    /** 该用户名当前是否要求验证码（供前端预检）。 */
+    public boolean captchaRequired(String username, HttpServletRequest request) {
+        if ("OFF".equals(captchaMode)) {
+            return false;
+        }
+        if ("ALWAYS".equals(captchaMode)) {
+            return true;
+        }
+        long now = System.currentTimeMillis();
+        if (username != null && !username.trim().isEmpty()) {
+            FailInfo fi = failures.get(username);
+            if (fi != null && fi.count >= 3 && fi.lockUntil <= now) {
+                return true;
+            }
+            if (fi != null && fi.count >= 3 && fi.lockUntil > now) {
+                return true;
+            }
+        }
+        if (request != null) {
+            IpFailInfo ip = ipFailures.get(rateLimiter.clientIp(request));
+            if (ip != null
+                    && ip.count.get() >= 3
+                    && now - ip.lastFailure <= lockMillis) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Map<String, Object> login(
+            String username,
+            String password,
+            String captchaId,
+            String captchaCode,
+            HttpServletRequest request) {
+        String ip = rateLimiter.clientIp(request);
+        rateLimiter.check(ip);
         if (username == null
                 || username.trim().isEmpty()
                 || password == null
                 || password.isEmpty()) {
             throw new BizException(400, "用户名和密码必填");
+        }
+        if (captchaRequired(username, request)
+                && !captchaService.verify(captchaId, captchaCode)) {
+            throw new BizException(CODE_CAPTCHA_REQUIRED, "请输入正确的验证码");
         }
         FailInfo fi = failures.get(username);
         if (fi != null) {
@@ -71,14 +135,15 @@ public class AuthService {
                 || u.getPasswordHash() == null
                 || password == null
                 || !encoder.matches(password, u.getPasswordHash())) {
-            recordFailure(username);
+            recordFailure(username, ip);
             throw new BizException(401, "用户名或密码错误");
         }
         if (Role.of(u.getRole()) == null) {
-            recordFailure(username);
+            recordFailure(username, ip);
             throw new BizException(401, "用户名或密码错误");
         }
         failures.remove(username);
+        ipFailures.remove(ip);
         LoginUser login = toLoginUser(u);
         Map<String, Object> m = new HashMap<>();
         m.put("token", jwtService.issue(login));
@@ -115,7 +180,7 @@ public class AuthService {
         userMapper.updateById(u);
     }
 
-    private void recordFailure(String username) {
+    private void recordFailure(String username, String ip) {
         FailInfo fi = failures.computeIfAbsent(username, k -> new FailInfo());
         synchronized (fi) {
             fi.count++;
@@ -124,7 +189,13 @@ public class AuthService {
                 fi.lockUntil = fi.lastFailure + lockMillis;
             }
         }
+        if (ip != null) {
+            IpFailInfo ipfi = ipFailures.computeIfAbsent(ip, k -> new IpFailInfo());
+            ipfi.count.incrementAndGet();
+            ipfi.lastFailure = fi.lastFailure;
+        }
         evictIfNeeded();
+        evictIpIfNeeded();
     }
 
     private void evictIfNeeded() {
@@ -141,7 +212,7 @@ public class AuthService {
             String oldest = null;
             long oldestTs = Long.MAX_VALUE;
             for (Map.Entry<String, FailInfo> e : failures.entrySet()) {
-                if (e.getValue().lockUntil <= now && e.getValue().lastFailure < oldestTs) {
+                if (e.getValue().lastFailure < oldestTs) {
                     oldestTs = e.getValue().lastFailure;
                     oldest = e.getKey();
                 }
@@ -150,6 +221,28 @@ public class AuthService {
                 break;
             }
             failures.remove(oldest);
+        }
+    }
+
+    private void evictIpIfNeeded() {
+        if (ipFailures.size() <= MAX_ENTRIES) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        ipFailures.entrySet().removeIf(e -> now - e.getValue().lastFailure > lockMillis);
+        while (ipFailures.size() > MAX_ENTRIES) {
+            String oldest = null;
+            long oldestTs = Long.MAX_VALUE;
+            for (Map.Entry<String, IpFailInfo> e : ipFailures.entrySet()) {
+                if (e.getValue().lastFailure < oldestTs) {
+                    oldestTs = e.getValue().lastFailure;
+                    oldest = e.getKey();
+                }
+            }
+            if (oldest == null) {
+                break;
+            }
+            ipFailures.remove(oldest);
         }
     }
 

@@ -16,7 +16,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
     public R<Void> biz(BizException e, javax.servlet.http.HttpServletResponse res) {
-        if (e.getCode() == 401 || e.getCode() == 403) {
+        if (e.getCode() == 401 || e.getCode() == 403 || e.getCode() == 429) {
             res.setStatus(e.getCode());
         }
         return R.fail(e.getCode(), e.getMessage());
