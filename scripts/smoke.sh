@@ -147,9 +147,16 @@ test "$(echo "$AS"|jq -r .grade)" != "null"
 echo "== 13 sales order flow"
 SO=$(call POST /network/sales-order "{\"dealerCode\":\"$DC\",\"customerId\":$CID,\"modelCode\":\"M001\",\"color\":\"珍珠白\",\"price\":150000,\"deposit\":5000}")
 SOID=$(echo "$SO"|jq -r .id)
+# 冒烟可重复：先补一台在库整车（库存可能已被历史运行售罄）
+call POST /network/vehicle-stock "{\"dealerCode\":\"$DC\",\"vin\":\"VSMOKE$(date +%s)\",\"modelCode\":\"M001\",\"color\":\"珍珠白\",\"status\":\"IN_STOCK\"}" >/dev/null
 SO=$(call POST "/network/sales-order/$SOID/allocate"); test "$(echo "$SO"|jq -r .vin)" != "null"
-call POST "/network/sales-order/$SOID/invoice" >/dev/null
-SO=$(call POST "/network/sales-order/$SOID/deliver"); test "$(echo "$SO"|jq -r .status)" = "DELIVERED"
+call POST "/network/sales-order/$SOID/finance" "{\"loanProvider\":\"上汽通用金融\",\"loanAmount\":100000,\"loanTermMonths\":24}" >/dev/null
+SO=$(call POST "/network/sales-order/$SOID/finance/decision" "{\"approved\":true}"); test "$(echo "$SO"|jq -r .loanStatus)" = "APPROVED"
+call POST "/network/sales-order/$SOID/insurance" "{\"company\":\"人保财险\",\"policyNo\":\"PICC-001\",\"amount\":6000}" >/dev/null
+call POST "/network/sales-order/$SOID/payment" "{\"payType\":\"BALANCE\",\"amount\":45000,\"method\":\"TRANSFER\"}" >/dev/null
+call POST "/network/sales-order/$SOID/invoice" "{\"invoiceType\":\"ELECTRONIC\",\"buyerTaxNo\":\"91310000TEST001\"}" >/dev/null
+SO=$(call POST "/network/sales-order/$SOID/deliver" "{\"pdiPassed\":true,\"remark\":\"冒烟交车\"}"); test "$(echo "$SO"|jq -r .status)" = "DELIVERED"
+test "$(echo "$SO"|jq -r .surveyId)" != "null"
 VNEW=$(call GET "/customer/vehicle/page?vin=$(echo "$SO"|jq -r .vin)")
 test "$(echo "$VNEW"|jq '.records|length')" = "1"
 

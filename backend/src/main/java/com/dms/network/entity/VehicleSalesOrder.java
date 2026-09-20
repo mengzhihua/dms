@@ -26,4 +26,19 @@ public class VehicleSalesOrder extends BaseEntity {
     private BigDecimal price;
     private BigDecimal deposit;
     private String status; // NEW/ALLOCATED/INVOICED/DELIVERED/CANCELLED
+    private String paymentType; // FULL/LOAN
+    private String loanProvider;
+    private BigDecimal loanAmount;
+    private Integer loanTermMonths;
+    private String loanStatus; // NONE/APPLIED/APPROVED/REJECTED
+    private String insuranceCompany;
+    private String insurancePolicyNo;
+    private BigDecimal insuranceAmount;
+    private String insuranceStatus; // NONE/ISSUED
+    private BigDecimal paidAmount;
+    private Long invoiceId;
+    private Long surveyId;
+    private Boolean pdiPassed;
+    private java.time.LocalDateTime deliveredAt;
+    private String deliverRemark;
 }

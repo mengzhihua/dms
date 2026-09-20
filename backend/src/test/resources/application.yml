@@ -30,6 +30,8 @@ dms:
   auth:
     jwt-secret: test-secret-key-for-dms-jwt-signing-0123456789abcdef
     expire-hours: 12
+    ip-max-per-minute: 0
+    captcha-mode: "OFF"
   cors:
     allowed-origins: "*"
   tax:

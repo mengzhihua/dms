@@ -33,6 +33,11 @@ public class InvoiceController extends BaseCrudController<Invoice, InvoiceMapper
         return R.ok(service.issue(id));
     }
 
+    @PostMapping("/{id}/sync")
+    public R<Invoice> sync(@PathVariable Long id) {
+        return R.ok(service.sync(id));
+    }
+
     @PostMapping("/{id}/red-flush")
     public R<Invoice> redFlush(@PathVariable Long id) {
         return R.ok(service.redFlush(id));
