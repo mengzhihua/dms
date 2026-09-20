@@ -27,6 +27,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/captcha/**",
                         "/api/invoice/callback/**",
                         "/api/open/**",
+                        "/sim/**",
                         "/h2/**",
                         "/error");
     }

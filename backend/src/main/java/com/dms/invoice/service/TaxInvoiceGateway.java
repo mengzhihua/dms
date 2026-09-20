@@ -24,5 +24,7 @@ public interface TaxInvoiceGateway {
         private String pdfUrl;
         private String providerRef;
         private String errorMsg;
+        /** true = 平台已受理，异步出票，需后续 query/回调确认。 */
+        private boolean pending;
     }
 }
