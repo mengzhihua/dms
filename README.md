@@ -151,3 +151,20 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 ## 前端
 
 左侧菜单按业务分组；头部有经销商选择器（持久化 localStorage，各页面默认按所选经销商过滤）。自定义页面：工单详情（步骤条+工时/备件/日志 Tab+状态机动作按钮）、智能推荐、答卷、满意度统计、发票开具/红冲/预览、工作台卡片与排名。
+
+## 发布包（单 JAR 成品）
+
+把前端生产构建打进后端可执行 JAR，解压即可运行：
+
+```bash
+bash scripts/package-release.sh
+unzip release/dms-1.0.0.zip
+cd dms-1.0.0
+./start.sh
+```
+
+浏览器访问 `http://127.0.0.1:8092`。默认账号（如启用登录）`admin / admin123`。
+
+十二套系统可同时启动，端口互不冲突：OMS 8081 / WMS 8082 / TMS 8083 / BMS 8084 / SAP 8085 / OA 8086 / SRM 8087 / BOM 8088 / INV 8089 / IR 8090 / CRM 8091 / DMS 8092。
+
+打 GitHub Release：在默认分支合并后执行 `git tag v1.0.0 && git push origin v1.0.0`，Actions 会上传 zip。
