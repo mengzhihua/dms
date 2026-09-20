@@ -20,9 +20,14 @@ export const network = {
   achievement: (params) => http.get('/network/target/achievement', { params }),
   generateAssessment: (params) => http.post('/network/assessment/generate', null, { params }),
   allocate: (id) => http.post(`/network/sales-order/${id}/allocate`),
-  invoiceOrder: (id) => http.post(`/network/sales-order/${id}/invoice`),
-  deliverOrder: (id) => http.post(`/network/sales-order/${id}/deliver`),
-  cancelOrder: (id) => http.post(`/network/sales-order/${id}/cancel`)
+  invoiceOrder: (id, data) => http.post(`/network/sales-order/${id}/invoice`, data),
+  deliverOrder: (id, data) => http.post(`/network/sales-order/${id}/deliver`, data),
+  cancelOrder: (id) => http.post(`/network/sales-order/${id}/cancel`),
+  financeApply: (id, data) => http.post(`/network/sales-order/${id}/finance`, data),
+  financeDecision: (id, data) => http.post(`/network/sales-order/${id}/finance/decision`, data),
+  insure: (id, data) => http.post(`/network/sales-order/${id}/insurance`, data),
+  payOrder: (id, data) => http.post(`/network/sales-order/${id}/payment`, data),
+  salesDetail: (id) => http.get(`/network/sales-order/${id}/detail`)
 }
 
 export const customer = {

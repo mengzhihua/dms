@@ -43,7 +43,8 @@ public class RolePolicy {
                     "/api/parts/stock/reserve**",
                     "/api/parts/stock/release**",
                     "/api/parts/stock/inbound",
-                    "/api/oms/replenish/**");
+                    "/api/oms/replenish/**",
+                    "/api/network/sales-order/**");
 
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =
@@ -69,7 +70,9 @@ public class RolePolicy {
                     "/api/invoice/**",
                     "/api/workshop/order/*/settle",
                     "/api/network/sales-order/*/invoice",
-                    "/api/network/sales-order/*/deliver");
+                    "/api/network/sales-order/*/deliver",
+                    "/api/network/sales-order/*/payment",
+                    "/api/network/sales-order/*/finance/decision");
 
     private RolePolicy() {}
 
