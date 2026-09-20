@@ -45,8 +45,8 @@ public class ReplenishService {
     public static final String RECEIVED = "RECEIVED";
     public static final String CANCELLED = "CANCELLED";
     private static final List<String> OPEN = Arrays.asList(PUSHED, SHIPPED);
-    /** 超过此时长仍在 PUSHING 视为下单中断,syncAll 时恢复 */
-    private static final Duration PUSHING_TIMEOUT = Duration.ofMinutes(2);
+    /** 超过此时长仍在 PUSHING 视为下单中断(启动/syncAll 时恢复);应大于 OMS 调用超时 dms.oms.timeout-ms */
+    public static final Duration PUSHING_TIMEOUT = Duration.ofMinutes(2);
     /** OMS 状态先后次序,旧快照不能覆盖新快照的元数据 */
     private static final List<String> OMS_ORDER = Arrays.asList(
             "CREATED", "AUDITED", "ALLOCATED", "PUSHED", "SPLIT", "SHIPPED", "COMPLETED", "CANCELLED");
@@ -215,12 +215,25 @@ public class ReplenishService {
         return req;
     }
 
-    /** OMS 已建单:PUSHING->PUSHED 并应用 OMS 快照 */
+    /**
+     * OMS 已建单:PUSHING->PUSHED 并应用 OMS 快照。
+     * 若其他实例的恢复任务已将本单回退 DRAFT(OMS 建单前没查到),则改为 DRAFT->PUSHED,保证本地与远端一致;
+     * 仍无法迁移则以当前状态报错,不静默返回。
+     */
     private ReplenishOrder confirmPushed(ReplenishOrder o, Map<String, Object> remote) {
+        if (mapper.transit(o.getId(), PUSHING, PUSHED) != 1
+                && mapper.transit(o.getId(), DRAFT, PUSHED) != 1) {
+            ReplenishOrder cur = mapper.selectById(o.getId());
+            if (cur == null || !OPEN.contains(cur.getStatus())) {
+                String st = cur == null ? "不存在" : cur.getStatus();
+                markError(o.getId(), "OMS 已建单 " + str(remote.get("orderNo")) + " 但本地状态为 " + st + ",请人工核对");
+                throw new BizException("OMS 已建单,但补货单本地状态为 " + st + ",无法确认为已下单");
+            }
+        }
         mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
                 .eq(ReplenishOrder::getId, o.getId())
+                .isNull(ReplenishOrder::getPushedAt)
                 .set(ReplenishOrder::getPushedAt, LocalDateTime.now()));
-        mapper.transit(o.getId(), PUSHING, PUSHED);
         o.setStatus(PUSHED);
         tx.executeWithoutResult(s -> applyOmsState(o, remote));
         return mapper.selectById(o.getId());
@@ -228,13 +241,12 @@ public class ReplenishService {
 
     /**
      * 恢复因进程中断停在 PUSHING 的补货单:按 shopCode+replenishNo 查 OMS,已建单则转 PUSHED,未建单则回退 DRAFT。
-     * 启动时恢复全部 PUSHING;syncAll 仅恢复超时的 PUSHING(避免与正在进行的 push 竞争)。
+     * 只处理超过 PUSHING_TIMEOUT 的单据:启动恢复也遵守超时,因为滚动发布时其他实例可能仍在下单。
      */
-    public int recoverPushing(boolean onlyStale) {
-        QueryWrapper<ReplenishOrder> q = new QueryWrapper<ReplenishOrder>().eq("status", PUSHING);
-        if (onlyStale) {
-            q.lt("updated_at", LocalDateTime.now().minus(PUSHING_TIMEOUT));
-        }
+    public int recoverPushing() {
+        QueryWrapper<ReplenishOrder> q = new QueryWrapper<ReplenishOrder>()
+                .eq("status", PUSHING)
+                .lt("updated_at", LocalDateTime.now().minus(PUSHING_TIMEOUT));
         int n = 0;
         for (ReplenishOrder o : mapper.selectList(q)) {
             try {
@@ -255,7 +267,7 @@ public class ReplenishService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverPushingOnStartup() {
-        int n = recoverPushing(false);
+        int n = recoverPushing();
         if (n > 0) {
             log.info("启动恢复 PUSHING 补货单 {} 张", n);
         }
@@ -320,7 +332,7 @@ public class ReplenishService {
 
     /** 同步所有在途补货单,返回同步条数 */
     public int syncAll() {
-        int n = recoverPushing(true);
+        int n = recoverPushing();
         for (ReplenishOrder o : mapper.selectList(new QueryWrapper<ReplenishOrder>().in("status", OPEN))) {
             try {
                 sync(o.getId());

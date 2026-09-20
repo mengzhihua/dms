@@ -15,6 +15,8 @@ import com.dms.oms.entity.ReplenishOrder;
 import com.dms.oms.mapper.ReplenishOrderMapper;
 import com.dms.oms.service.ReplenishService;
 import com.dms.parts.service.PartStockService;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -177,7 +179,12 @@ class ReplenishFailureTest {
         assertThrows(BizException.class, () -> service.cancel(exists.getId(), "x"));
 
         // 启动恢复:OMS 已建单 -> PUSHED 并补写元数据;OMS 无单 -> 回退 DRAFT
-        assertEquals(2, service.recoverPushing(false));
+        // 启动恢复同样遵守超时(滚动发布时另一实例可能仍在下单)
+        service.recoverPushingOnStartup();
+        assertEquals(ReplenishService.PUSHING, service.get(exists.getId()).getStatus());
+        backdate(exists.getId());
+        backdate(missing.getId());
+        assertEquals(2, service.recoverPushing());
         ReplenishOrder e = service.get(exists.getId());
         assertEquals(ReplenishService.PUSHED, e.getStatus());
         assertEquals("SO-5", e.getOmsOrderNo());
@@ -192,6 +199,47 @@ class ReplenishFailureTest {
         created.put("status", "CREATED");
         when(oms.createOrder(any())).thenReturn(created);
         assertEquals(ReplenishService.PUSHED, service.push(missing.getId()).getStatus());
+    }
+
+    private void backdate(Long id) {
+        mapper.update(null, new LambdaUpdateWrapper<ReplenishOrder>()
+                .eq(ReplenishOrder::getId, id)
+                .set(ReplenishOrder::getUpdatedAt,
+                        LocalDateTime.now().minus(ReplenishService.PUSHING_TIMEOUT).minusMinutes(1)));
+    }
+
+    @Test
+    void pushStillEndsPushedWhenAnotherInstanceRolledBackToDraft() {
+        ReplenishOrder d = service.create("D001", Collections.singletonList(item("P0010", 1)), null, null);
+        // OMS 建单期间,另一实例的恢复任务查不到远端单,已把本单回退 DRAFT
+        when(oms.createOrder(any())).thenAnswer(inv -> {
+            assertEquals(1, mapper.transit(d.getId(), ReplenishService.PUSHING, ReplenishService.DRAFT));
+            Map<String, Object> created = new LinkedHashMap<>();
+            created.put("orderNo", "SO-7");
+            created.put("status", "CREATED");
+            return created;
+        });
+        ReplenishOrder o = service.push(d.getId());
+        assertEquals(ReplenishService.PUSHED, o.getStatus());
+        assertEquals("SO-7", o.getOmsOrderNo());
+        assertNotNull(o.getPushedAt());
+    }
+
+    @Test
+    void pushFailsLoudlyWhenLocalOrderCancelledDuringOmsCreate() {
+        ReplenishOrder d = service.create("D001", Collections.singletonList(item("P0011", 1)), null, null);
+        when(oms.createOrder(any())).thenAnswer(inv -> {
+            mapper.transit(d.getId(), ReplenishService.PUSHING, ReplenishService.DRAFT);
+            service.cancel(d.getId(), "并发取消");
+            Map<String, Object> created = new LinkedHashMap<>();
+            created.put("orderNo", "SO-8");
+            created.put("status", "CREATED");
+            return created;
+        });
+        assertThrows(BizException.class, () -> service.push(d.getId()));
+        ReplenishOrder after = service.get(d.getId());
+        assertEquals(ReplenishService.CANCELLED, after.getStatus());
+        assertTrue(after.getLastError().contains("SO-8"));
     }
 
     @Test
