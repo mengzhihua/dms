@@ -88,7 +88,7 @@ public class OpenIrController {
 
     private void checkKey(String key) {
         if (apiKey == null || apiKey.trim().isEmpty() || !apiKey.equals(key)) {
-            throw new BizException("无效的 API Key");
+            throw new BizException(401, "无效的 API Key");
         }
     }
 
