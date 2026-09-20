@@ -3,6 +3,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${SERVER_PORT:-8092}"
 cd "$DIR"
+export SKIP_BROWSER=1
 ./start.sh > "$DIR/smoke.log" 2>&1 &
 PID=$!
 cleanup() { kill "$PID" 2>/dev/null || true; wait "$PID" 2>/dev/null || true; }
@@ -23,8 +24,7 @@ spa="$(curl -sS -o /tmp/dms-spa.body -w "%{http_code}" "http://127.0.0.1:${PORT}
 test "$spa" = "200"
 body="$(curl -sS -X POST "http://127.0.0.1:${PORT}/api/auth/login" \
   -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"123456"}')"
+  -d '{"username":"admin","password":"123456"}')"
 echo "$body" | grep -q '"code":0' || { echo "SMOKE FAIL dms: login code != 0: $body"; exit 1; }
 echo "$body" | grep -q '"token"' || { echo "SMOKE FAIL dms: login has no token: $body"; exit 1; }
-
 echo "SMOKE OK dms :$PORT"
