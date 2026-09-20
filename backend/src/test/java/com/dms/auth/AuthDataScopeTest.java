@@ -98,7 +98,7 @@ class AuthDataScopeTest {
         String sa = login("d001sa", "123456");
         Map<String, Object> cust = new HashMap<>();
         cust.put("name", "数据范围测试客户");
-        cust.put("phone", "13800000001");
+        cust.put("phone", "139" + System.currentTimeMillis() % 100000000L);
         cust.put("dealerCode", "D001");
         ResponseEntity<Map> c =
                 http.exchange("/api/customer/customer", HttpMethod.POST, auth(sa, cust), Map.class);

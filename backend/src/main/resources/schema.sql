@@ -168,8 +168,10 @@ CREATE TABLE IF NOT EXISTS dms_customer (
     dealer_code VARCHAR(32),
     remark VARCHAR(255),
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    UNIQUE(dealer_code, phone)
 );
+ALTER TABLE dms_customer ADD CONSTRAINT IF NOT EXISTS uk_customer_dealer_phone UNIQUE(dealer_code, phone);
 
 CREATE TABLE IF NOT EXISTS dms_vehicle_model (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -422,8 +424,10 @@ CREATE TABLE IF NOT EXISTS dms_survey_question (
     weight DECIMAL(6,3) DEFAULT 1,
     remark VARCHAR(255),
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    UNIQUE(template_id, seq)
 );
+ALTER TABLE dms_survey_question ADD CONSTRAINT IF NOT EXISTS uk_question_template_seq UNIQUE(template_id, seq);
 
 CREATE TABLE IF NOT EXISTS dms_survey (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
