@@ -37,6 +37,9 @@ dms:
   auth:
     jwt-secret: ${DMS_JWT_SECRET:}    # 生产必须配置；留空则启动时生成随机密钥，重启后旧 token 失效
     expire-hours: 12
+    ip-max-per-minute: ${DMS_AUTH_IP_MAX_PER_MINUTE:30}  # 每 IP 每分钟登录限流；0 关闭
+    captcha-mode: ${DMS_AUTH_CAPTCHA_MODE:ADAPTIVE}      # OFF | ADAPTIVE(失败>=3次后要求) | ALWAYS
+    trust-proxy: ${DMS_AUTH_TRUST_PROXY:false}           # true 时用 X-Forwarded-For 首个 IP 作为客户端地址
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   tax:

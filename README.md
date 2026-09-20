@@ -62,6 +62,7 @@ scripts/   smoke.sh 全链路冒烟脚本
 - 接口：`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout`、`PUT /api/auth/password`。
 - 配置：`dms.auth.jwt-secret`（HS256 密钥，经环境变量 `DMS_JWT_SECRET` 注入；未配置时启动生成随机密钥并告警，重启后旧 token 全部失效；配置值不足 32 字节时启动直接报错）、`dms.auth.expire-hours`（默认 12）。
 - 登录锁定：同一用户名连续 5 次失败锁定 15 分钟。
+- 登录风控：`dms.auth.ip-max-per-minute`（env `DMS_AUTH_IP_MAX_PER_MINUTE`，默认 30，0 关闭）对登录接口按客户端 IP 做固定 60 秒窗口限流，超限返回 429；`dms.auth.captcha-mode`（env `DMS_AUTH_CAPTCHA_MODE`，`OFF|ADAPTIVE|ALWAYS`，默认 ADAPTIVE）在用户名或 IP 近 15 分钟累计 ≥3 次失败后要求图形验证码（`GET /api/auth/captcha` 取图，登录体带 `captchaId`/`captchaCode`，缺失/错误返回业务码 4001）；`dms.auth.trust-proxy`（env `DMS_AUTH_TRUST_PROXY`，默认 false）为 true 时以 `X-Forwarded-For` 首个 IP 作为客户端地址。
 - 权限矩阵见 `RolePolicy`（基于 AntPathMatcher 的角色→路径表）。
 
 ## 工单状态机
