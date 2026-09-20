@@ -184,7 +184,8 @@ cd dms-1.0.0
 
 - `dms-1.0.0-linux-x64.zip` → `bin/dms`
 - `dms-1.0.0-windows-x64.zip` → 双击 `dms.exe`
-- `dms-1.0.0-macos-x64.zip` → 双击 `dms.app`
+- `dms-1.0.0-macos-arm64.zip` → Apple Silicon（M 系列），双击 `dms.app`
+- `dms-1.0.0-macos-x64.zip` → Intel Mac，双击 `dms.app`
 
 浏览器访问 `http://127.0.0.1:8092`。默认账号 `admin / 123456`。
 
