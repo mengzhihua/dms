@@ -4,13 +4,19 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
+import com.dms.customer.entity.Customer;
 import com.dms.customer.entity.Vehicle;
 import com.dms.customer.entity.VehicleModel;
+import com.dms.customer.mapper.CustomerMapper;
 import com.dms.customer.mapper.VehicleMapper;
 import com.dms.customer.mapper.VehicleModelMapper;
+import com.dms.invoice.entity.Invoice;
+import com.dms.invoice.mapper.InvoiceMapper;
+import com.dms.invoice.service.InvoiceService;
 import com.dms.network.entity.*;
 import com.dms.network.mapper.*;
 import com.dms.survey.entity.Complaint;
+import com.dms.survey.service.SurveyService;
 import com.dms.survey.entity.Survey;
 import com.dms.survey.mapper.ComplaintMapper;
 import com.dms.survey.mapper.SurveyMapper;
@@ -19,7 +25,9 @@ import com.dms.workshop.mapper.WorkOrderMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import javax.validation.Valid;
 import java.util.List;
@@ -38,6 +46,11 @@ public class NetworkService {
     private final VehicleStockMapper stockMapper;
     private final VehicleMapper vehicleMapper;
     private final VehicleModelMapper modelMapper;
+    private final CustomerMapper customerMapper;
+    private final SalesPaymentMapper paymentMapper;
+    private final InvoiceMapper invoiceMapper;
+    private final InvoiceService invoiceService;
+    private final SurveyService surveyService;
     private final WorkOrderMapper workOrderMapper;
     private final SurveyMapper surveyMapper;
     private final ComplaintMapper complaintMapper;
@@ -218,8 +231,139 @@ public class NetworkService {
         o.setOrderNo(codeGenerator.next("SO"));
         o.setDeposit(o.getDeposit() == null ? BigDecimal.ZERO : o.getDeposit());
         o.setStatus("NEW");
+        o.setPaymentType("FULL");
+        o.setLoanStatus("NONE");
+        o.setInsuranceStatus("NONE");
+        o.setPaidAmount(o.getDeposit());
         salesOrderMapper.insert(o);
+        if (o.getDeposit().compareTo(BigDecimal.ZERO) > 0) {
+            insertPayment(o, "DEPOSIT", o.getDeposit(), "CASH", "定金");
+        }
         return o;
+    }
+
+    private void insertPayment(
+            VehicleSalesOrder o, String payType, BigDecimal amount, String method, String remark) {
+        SalesPayment p = new SalesPayment();
+        p.setOrderId(o.getId());
+        p.setDealerCode(o.getDealerCode());
+        p.setPayType(payType);
+        p.setAmount(amount);
+        p.setMethod(method);
+        p.setPaidAt(LocalDateTime.now());
+        p.setRemark(remark);
+        paymentMapper.insert(p);
+    }
+
+    /** 金融贷款申请：仅 NEW/ALLOCATED，金额 0 < x <= 车价。 */
+    @Transactional
+    public VehicleSalesOrder applyFinance(Long id, Map<String, Object> body) {
+        VehicleSalesOrder o = mustGet(id);
+        if (!"NEW".equals(o.getStatus()) && !"ALLOCATED".equals(o.getStatus())) {
+            throw new BizException("仅新建/已分配订单可申请贷款");
+        }
+        BigDecimal amount = toBig(body.get("loanAmount"));
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0
+                || amount.compareTo(o.getPrice()) > 0) {
+            throw new BizException("贷款金额须在 0 与车价之间");
+        }
+        o.setLoanProvider(str(body.get("loanProvider")));
+        o.setLoanAmount(amount);
+        Object term = body.get("loanTermMonths");
+        o.setLoanTermMonths(term instanceof Number ? ((Number) term).intValue() : null);
+        o.setPaymentType("LOAN");
+        o.setLoanStatus("APPLIED");
+        salesOrderMapper.updateById(o);
+        return o;
+    }
+
+    /** 贷款审批：APPLIED → APPROVED/REJECTED；拒绝则回退为全款。 */
+    @Transactional
+    public VehicleSalesOrder financeDecision(Long id, Map<String, Object> body) {
+        VehicleSalesOrder o = mustGet(id);
+        if (!"APPLIED".equals(o.getLoanStatus())) {
+            throw new BizException("当前订单无待审批贷款");
+        }
+        boolean approved = Boolean.TRUE.equals(body.get("approved"));
+        if (approved) {
+            o.setLoanStatus("APPROVED");
+        } else {
+            o.setLoanStatus("REJECTED");
+            o.setPaymentType("FULL");
+            o.setLoanAmount(BigDecimal.ZERO);
+        }
+        o.setRemark(str(body.get("remark")));
+        salesOrderMapper.updateById(o);
+        return o;
+    }
+
+    /** 保险登记：交付/取消前均可。 */
+    @Transactional
+    public VehicleSalesOrder insurance(Long id, Map<String, Object> body) {
+        VehicleSalesOrder o = mustGet(id);
+        if ("DELIVERED".equals(o.getStatus()) || "CANCELLED".equals(o.getStatus())) {
+            throw new BizException("订单已交付或已取消");
+        }
+        o.setInsuranceCompany(str(body.get("company")));
+        o.setInsurancePolicyNo(str(body.get("policyNo")));
+        o.setInsuranceAmount(toBig(body.get("amount")));
+        o.setInsuranceStatus("ISSUED");
+        salesOrderMapper.updateById(o);
+        return o;
+    }
+
+    /** 收款：DEPOSIT/BALANCE/LOAN/INSURANCE 流水 + paidAmount 累计。 */
+    @Transactional
+    public VehicleSalesOrder addPayment(Long id, Map<String, Object> body) {
+        VehicleSalesOrder o = mustGet(id);
+        if ("DELIVERED".equals(o.getStatus()) || "CANCELLED".equals(o.getStatus())) {
+            throw new BizException("订单已交付或已取消");
+        }
+        BigDecimal amount = toBig(body.get("amount"));
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BizException("收款金额必须大于0");
+        }
+        String payType = str(body.get("payType"));
+        insertPayment(o, payType == null ? "BALANCE" : payType,
+                amount, str(body.get("method")), str(body.get("remark")));
+        o.setPaidAmount((o.getPaidAmount() == null ? BigDecimal.ZERO : o.getPaidAmount())
+                .add(amount));
+        salesOrderMapper.updateById(o);
+        return o;
+    }
+
+    public List<SalesPayment> payments(Long id) {
+        VehicleSalesOrder o = mustGet(id);
+        return paymentMapper.selectList(
+                new QueryWrapper<SalesPayment>().eq("order_id", o.getId()).orderByAsc("id"));
+    }
+
+    /** 订单详情聚合：订单 + 收款流水 + 发票 + 调研。 */
+    public Map<String, Object> salesDetail(Long id) {
+        VehicleSalesOrder o = mustGet(id);
+        Map<String, Object> m = new HashMap<>();
+        m.put("order", o);
+        m.put("payments", payments(id));
+        m.put(
+                "invoice",
+                o.getInvoiceId() == null ? null : invoiceMapper.selectById(o.getInvoiceId()));
+        m.put(
+                "survey",
+                o.getSurveyId() == null
+                        ? null
+                        : surveyMapper.selectById(o.getSurveyId()));
+        return m;
+    }
+
+    private static String str(Object v) {
+        return v == null ? null : String.valueOf(v);
+    }
+
+    private static BigDecimal toBig(Object v) {
+        if (v == null) {
+            return null;
+        }
+        return v instanceof BigDecimal ? (BigDecimal) v : new BigDecimal(String.valueOf(v));
     }
 
     /** 分配：从该经销商整车库存中挑一台匹配车型/颜色的在库车。 */
@@ -251,12 +395,25 @@ public class NetworkService {
         return o;
     }
 
+    /** 开票：创建真实发票草稿（机动车税收编码），回写 invoiceId。 */
     @Transactional
-    public VehicleSalesOrder invoiceSalesOrder(Long id) {
+    public VehicleSalesOrder invoiceSalesOrder(Long id, Map<String, Object> body) {
         VehicleSalesOrder o = mustGet(id);
         if (!"ALLOCATED".equals(o.getStatus())) {
             throw new BizException("只有已分配订单可以开票");
         }
+        String buyerName = body == null ? null : str(body.get("buyerName"));
+        if (buyerName == null || buyerName.trim().isEmpty()) {
+            Customer c = customerMapper.selectById(o.getCustomerId());
+            buyerName = c == null ? "个人" : c.getName();
+        }
+        Long invoiceId =
+                invoiceService.createFromSalesOrder(
+                        o,
+                        body == null ? null : str(body.get("invoiceType")),
+                        buyerName,
+                        body == null ? null : str(body.get("buyerTaxNo")));
+        o.setInvoiceId(invoiceId);
         o.setStatus("INVOICED");
         salesOrderMapper.updateById(o);
         return o;
@@ -264,10 +421,26 @@ public class NetworkService {
 
     /** 交付：生成售后 Vehicle 档案，保修期按车型（月数/里程）起算。 */
     @Transactional
-    public VehicleSalesOrder deliver(Long id) {
+    public VehicleSalesOrder deliver(Long id, Map<String, Object> body) {
         VehicleSalesOrder o = mustGet(id);
-        if (!"ALLOCATED".equals(o.getStatus()) && !"INVOICED".equals(o.getStatus())) {
-            throw new BizException("只有已分配/已开票订单可以交付");
+        if (!"INVOICED".equals(o.getStatus())) {
+            throw new BizException("只有已开票订单可以交付");
+        }
+        if (body != null && !Boolean.TRUE.equals(body.get("pdiPassed"))) {
+            throw new BizException("PDI 检查未通过，不能交车");
+        }
+        if (body == null) {
+            throw new BizException("PDI 检查未通过，不能交车");
+        }
+        BigDecimal paid = o.getPaidAmount() == null ? BigDecimal.ZERO : o.getPaidAmount();
+        if ("APPROVED".equals(o.getLoanStatus()) && o.getLoanAmount() != null) {
+            paid = paid.add(o.getLoanAmount());
+        }
+        if ("LOAN".equals(o.getPaymentType()) && !"APPROVED".equals(o.getLoanStatus())) {
+            throw new BizException("贷款未审批通过，不能交车");
+        }
+        if (paid.compareTo(o.getPrice()) < 0) {
+            throw new BizException("尾款未结清");
         }
         VehicleStock s =
                 stockMapper.selectOne(new QueryWrapper<VehicleStock>().eq("vin", o.getVin()));
@@ -293,6 +466,10 @@ public class NetworkService {
         }
         vehicleMapper.insert(v);
         o.setStatus("DELIVERED");
+        o.setDeliveredAt(LocalDateTime.now());
+        o.setPdiPassed(true);
+        o.setDeliverRemark(str(body.get("remark")));
+        o.setSurveyId(surveyService.createForSalesOrder(o));
         salesOrderMapper.updateById(o);
         return o;
     }
@@ -302,6 +479,12 @@ public class NetworkService {
         VehicleSalesOrder o = mustGet(id);
         if ("DELIVERED".equals(o.getStatus()) || "CANCELLED".equals(o.getStatus())) {
             throw new BizException("订单已交付或已取消");
+        }
+        if (o.getInvoiceId() != null) {
+            Invoice inv = invoiceMapper.selectById(o.getInvoiceId());
+            if (inv != null && "ISSUED".equals(inv.getStatus())) {
+                throw new BizException("已开票订单请先红冲发票");
+            }
         }
         if ("ALLOCATED".equals(o.getStatus()) && o.getVin() != null) {
             VehicleStock s =

@@ -35,6 +35,9 @@ public class InvoiceService {
     /** 零配件（运输设备类）税收分类编码 */
     public static final String TAX_CODE_PART = "1090511010000000000";
 
+    /** 机动车销售统一发票/整车税收分类编码。 */
+    public static final String TAX_CODE_VEHICLE = "1090511010000000000";
+
     private final InvoiceMapper invoiceMapper;
     private final InvoiceLineMapper lineMapper;
     private final TaxConfigMapper taxConfigMapper;
@@ -181,6 +184,42 @@ public class InvoiceService {
             line.setTaxCategoryCode(TAX_CODE_LABOR);
             lineMapper.insert(line);
         }
+        return inv.getId();
+    }
+
+    /** 整车销售订单开票：一行“整车 <modelCode> VIN <vin>”，金额=车价。 */
+    @Transactional
+    public Long createFromSalesOrder(
+            com.dms.network.entity.VehicleSalesOrder o,
+            String invoiceType,
+            String buyerName,
+            String buyerTaxNo) {
+        Invoice inv = new Invoice();
+        inv.setInvoiceNo(codeGenerator.next("INV"));
+        inv.setSalesOrderId(o.getId());
+        inv.setDealerCode(o.getDealerCode());
+        inv.setInvoiceType(invoiceType == null ? "ELECTRONIC" : invoiceType);
+        inv.setBuyerName(buyerName == null ? "个人" : buyerName);
+        inv.setBuyerTaxNo(buyerTaxNo);
+        fillSellerAndAmounts(inv, o.getPrice());
+        inv.setStatus("DRAFT");
+        invoiceMapper.insert(inv);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoiceId(inv.getId());
+        line.setName("整车 " + o.getModelCode() + " VIN " + (o.getVin() == null ? "" : o.getVin()));
+        line.setUnit("台");
+        line.setQty(BigDecimal.ONE);
+        line.setUnitPrice(o.getPrice());
+        line.setAmount(o.getPrice());
+        line.setTaxRate(inv.getTaxRate());
+        line.setTaxAmount(
+                o.getPrice()
+                        .divide(BigDecimal.ONE.add(inv.getTaxRate()), 10, RoundingMode.HALF_UP)
+                        .multiply(inv.getTaxRate())
+                        .setScale(2, RoundingMode.HALF_UP));
+        line.setTaxCategoryCode(TAX_CODE_VEHICLE);
+        lineMapper.insert(line);
         return inv.getId();
     }
 

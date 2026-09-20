@@ -48,6 +48,32 @@ public class SurveyService {
         return s.getId();
     }
 
+    /** 整车交付后自动创建 SALES 类型调研（无 SALES 模板时回退 SERVICE）。 */
+    @Transactional
+    public Long createForSalesOrder(com.dms.network.entity.VehicleSalesOrder o) {
+        SurveyTemplate t =
+                templateMapper.selectOne(
+                        new QueryWrapper<SurveyTemplate>().eq("type", "SALES").last("LIMIT 1"));
+        if (t == null) {
+            t =
+                    templateMapper.selectOne(
+                            new QueryWrapper<SurveyTemplate>()
+                                    .eq("type", "SERVICE")
+                                    .last("LIMIT 1"));
+        }
+        Survey s = new Survey();
+        s.setSurveyNo(codeGenerator.next("SV"));
+        s.setTemplateCode(t == null ? null : t.getCode());
+        s.setDealerCode(o.getDealerCode());
+        s.setCustomerId(o.getCustomerId());
+        s.setSalesOrderId(o.getId());
+        s.setChannel("SMS");
+        s.setStatus("PENDING");
+        s.setSentTime(LocalDateTime.now());
+        surveyMapper.insert(s);
+        return s.getId();
+    }
+
     /** 提交答卷：计算加权总分(0-100)与NPS；总分<60或任一题<=3 自动生成投诉。 */
     @Transactional
     public Survey answer(Long surveyId, List<Map<String, Object>> answers) {
