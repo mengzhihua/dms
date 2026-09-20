@@ -25,6 +25,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/login",
                         "/api/invoice/callback/**",
                         "/api/open/**",
+                        "/sim/**",
                         "/h2/**",
                         "/error");
     }

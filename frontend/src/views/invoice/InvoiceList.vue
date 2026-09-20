@@ -21,6 +21,7 @@
           <template #default="{ row }">
             <el-button v-if="row.status === 'DRAFT' || row.status === 'FAILED'" link type="primary" size="small" @click="issue(row)">开具</el-button>
             <el-button v-if="row.status === 'ISSUED'" link type="danger" size="small" @click="redFlush(row)">红冲</el-button>
+            <el-button v-if="row.status === 'ISSUING'" link type="warning" size="small" @click="sync(row)">同步状态</el-button>
             <el-button link size="small" @click="preview(row)">预览</el-button>
           </template>
         </el-table-column>
@@ -111,6 +112,12 @@ async function issue(row) {
   } else {
     ElMessage.warning(`开票失败：${r.errorMsg || r.status}`)
   }
+  await load()
+}
+
+async function sync(row) {
+  const r = await invoice.sync(row.id)
+  ElMessage.success('同步完成：' + r.status)
   await load()
 }
 

@@ -99,7 +99,8 @@ export const invoice = {
   taxConfig: crud('/invoice/tax-config'),
   issue: (id) => http.post(`/invoice/${id}/issue`),
   redFlush: (id) => http.post(`/invoice/${id}/red-flush`),
-  preview: (id) => http.get(`/invoice/${id}/preview`)
+  preview: (id) => http.get(`/invoice/${id}/preview`),
+  sync: (id) => http.post(`/invoice/${id}/sync`)
 }
 
 export const auth = {

@@ -147,6 +147,8 @@ test "$(echo "$AS"|jq -r .grade)" != "null"
 echo "== 13 sales order flow"
 SO=$(call POST /network/sales-order "{\"dealerCode\":\"$DC\",\"customerId\":$CID,\"modelCode\":\"M001\",\"color\":\"珍珠白\",\"price\":150000,\"deposit\":5000}")
 SOID=$(echo "$SO"|jq -r .id)
+# 冒烟可重复：先补一台在库整车（库存可能已被历史运行售罄）
+call POST /network/vehicle-stock "{\"dealerCode\":\"$DC\",\"vin\":\"VSMOKE$(date +%s)\",\"modelCode\":\"M001\",\"color\":\"珍珠白\",\"status\":\"IN_STOCK\"}" >/dev/null
 SO=$(call POST "/network/sales-order/$SOID/allocate"); test "$(echo "$SO"|jq -r .vin)" != "null"
 call POST "/network/sales-order/$SOID/invoice" >/dev/null
 SO=$(call POST "/network/sales-order/$SOID/deliver"); test "$(echo "$SO"|jq -r .status)" = "DELIVERED"

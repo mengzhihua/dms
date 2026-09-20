@@ -45,6 +45,9 @@ dms:
     endpoint: http://localhost:9999/tax
     app-id: dms-app
     app-secret: change-me
+    sign-mode: HMAC         # HMAC(X-Sign 签名) | SECRET_HEADER(明文 X-App-Secret)
+    timeout-ms: 10000       # 连接+读取超时
+    callback-url: ""        # 写入请求报文，供平台异步回调
     callback-token: ""        # 非空时回调需携带 X-Tax-Callback-Token 头
   oms:
     mock: ${DMS_OMS_MOCK:true}          # true: 内存模拟 OMS(查询一次状态前进一步);false: HTTP 调用 OMS

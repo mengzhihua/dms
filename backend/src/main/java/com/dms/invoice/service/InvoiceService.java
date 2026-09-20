@@ -71,9 +71,13 @@ public class InvoiceService {
                 @Value("${dms.tax.mock-fail-rate:0}") double mockFailRate,
                 @Value("${dms.tax.endpoint:}") String endpoint,
                 @Value("${dms.tax.app-id:}") String appId,
-                @Value("${dms.tax.app-secret:}") String appSecret) {
+                @Value("${dms.tax.app-secret:}") String appSecret,
+                @Value("${dms.tax.sign-mode:HMAC}") String signMode,
+                @Value("${dms.tax.timeout-ms:10000}") int timeoutMs,
+                @Value("${dms.tax.callback-url:}") String callbackUrl) {
             if ("HTTP".equalsIgnoreCase(provider)) {
-                return new HttpTaxAdapter(endpoint, appId, appSecret);
+                return new HttpTaxAdapter(
+                        endpoint, appId, appSecret, signMode, timeoutMs, callbackUrl);
             }
             return new MockTaxAdapter(mockFailRate);
         }
@@ -214,7 +218,11 @@ public class InvoiceService {
         }
         inv.setStatus("ISSUING");
         TaxInvoiceGateway.IssueResult r = gateway.issue(inv, lines);
-        if (r.isSuccess()) {
+        if (r.isSuccess() && r.isPending()) {
+            // 平台受理中：保持 ISSUING，记录 providerRef 供 sync/回调
+            inv.setProviderRef(r.getProviderRef());
+            inv.setErrorMsg(null);
+        } else if (r.isSuccess()) {
             inv.setStatus("ISSUED");
             inv.setTaxInvoiceCode(r.getCode());
             inv.setTaxInvoiceNumber(r.getNumber());
@@ -261,7 +269,11 @@ public class InvoiceService {
         invoiceMapper.insert(red);
         List<InvoiceLine> redLines = lines(orig.getId());
         TaxInvoiceGateway.IssueResult r = gateway.redFlush(orig, red, redLines);
-        if (r.isSuccess()) {
+        if (r.isSuccess() && r.isPending()) {
+            // 受理中：红票保持 ISSUING，原票保持 RED_FLUSHING
+            red.setProviderRef(r.getProviderRef());
+            red.setErrorMsg(null);
+        } else if (r.isSuccess()) {
             red.setStatus("ISSUED");
             red.setTaxInvoiceCode(r.getCode());
             red.setTaxInvoiceNumber(r.getNumber());
@@ -289,6 +301,52 @@ public class InvoiceService {
         m.put("lines", lines(id));
         m.put("endpoint", "provider=" + gateway.getClass().getSimpleName());
         return m;
+    }
+
+    /** 手工同步：对 ISSUING 且有 providerRef 的发票调用平台 query。 */
+    @Transactional
+    public Invoice sync(Long id) {
+        Invoice inv = mustGet(id);
+        if (!"ISSUING".equals(inv.getStatus()) || inv.getProviderRef() == null) {
+            return inv;
+        }
+        TaxInvoiceGateway.IssueResult r = gateway.query(inv.getProviderRef());
+        if (r.isSuccess() && !r.isPending()) {
+            applyIssued(inv, r);
+            if (inv.getRedOfInvoiceId() != null) {
+                Invoice orig = mustGet(inv.getRedOfInvoiceId());
+                orig.setStatus("RED_FLUSHED");
+                invoiceMapper.updateById(orig);
+            }
+        } else if (!r.isSuccess()) {
+            inv.setStatus("FAILED");
+            inv.setErrorMsg(r.getErrorMsg());
+            if (inv.getRedOfInvoiceId() != null) {
+                Invoice orig = mustGet(inv.getRedOfInvoiceId());
+                orig.setStatus("ISSUED");
+                invoiceMapper.updateById(orig);
+            }
+        }
+        invoiceMapper.updateById(inv);
+        return inv;
+    }
+
+    private void applyIssued(Invoice inv, TaxInvoiceGateway.IssueResult r) {
+        inv.setStatus("ISSUED");
+        if (r.getCode() != null) {
+            inv.setTaxInvoiceCode(r.getCode());
+        }
+        if (r.getNumber() != null) {
+            inv.setTaxInvoiceNumber(r.getNumber());
+        }
+        if (r.getCheckCode() != null) {
+            inv.setCheckCode(r.getCheckCode());
+        }
+        if (r.getPdfUrl() != null) {
+            inv.setPdfUrl(r.getPdfUrl());
+        }
+        inv.setIssuedTime(LocalDateTime.now());
+        inv.setErrorMsg(null);
     }
 
     /** 异步回调：按 providerRef/发票号码回写状态。 */
@@ -325,6 +383,13 @@ public class InvoiceService {
             }
             inv.setErrorMsg((String) body.get("errorMsg"));
             invoiceMapper.updateById(inv);
+            // 红字发票终态联动原票
+            if (inv.getRedOfInvoiceId() != null
+                    && ("ISSUED".equals(status) || "FAILED".equals(status))) {
+                Invoice orig = mustGet(inv.getRedOfInvoiceId());
+                orig.setStatus("ISSUED".equals(status) ? "RED_FLUSHED" : "ISSUED");
+                invoiceMapper.updateById(orig);
+            }
         }
         return inv;
     }

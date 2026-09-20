@@ -82,16 +82,29 @@ QC_FAILED → IN_REPAIR(返工)；DISPATCHED 之前任意状态可 CANCELLED(释
 - 报价/结算：`总额 = 工时 + 备件`；保修项计入 `warrantyAmount`（厂家承担，不向客户收）；`customerPayable = 总额 - 保修 - 优惠`；`税额 = customerPayable / (1 + 0.13) × 0.13`。
 - 保修金额 > 0 结算时自动生成 `WarrantyClaim`（SUBMITTED→APPROVED→PAID / REJECTED）。
 
-## 发票对接
+## 发票对接（HTTP 税控网关）
 
-- 接口 `TaxInvoiceGateway { issue / query / redFlush }`，默认 `MockTaxAdapter`（生成 12 位发票代码 + 8 位发票号码 + 20 位校验码；`dms.tax.mock-fail-rate` 配置模拟失败率，默认 0）。
-- `HttpTaxAdapter` 为真实税控对接骨架：`POST {dms.tax.endpoint}/issue|/query|/red-flush`，头 `X-App-Id`/`X-App-Secret`，响应 JSON `{success, code, number, checkCode, pdfUrl, providerRef, errorMsg}`。
-- 配置：`dms.tax.provider=MOCK|HTTP`；`dms.tax.endpoint/app-id/app-secret`。
-- 红冲：`POST /api/invoice/{id}/red-flush` 生成负数红字发票并把原票置为 `RED_FLUSHED`。
+- 接口 `TaxInvoiceGateway { issue / query / redFlush }`，默认 `MockTaxAdapter`（本地模拟；`dms.tax.mock-fail-rate` 模拟失败率）。`dms.tax.provider=HTTP` 启用 `HttpTaxAdapter`。
+- 请求报文（`TaxRequest`，不再透传 Invoice 实体）：
+  `POST {endpoint}/issue | /query | /red-flush`，JSON `{requestId(=invoiceNo), invoiceType, buyer{name,taxNo,address,bank}, seller{name,taxNo}, amount, taxAmount, netAmount, taxRate, lines[{name,unit,qty,unitPrice,amount,taxRate,taxAmount,taxCategoryCode}], redOf{code,number}(仅红冲), callbackUrl, remark}`。
+- 签名（`dms.tax.sign-mode=HMAC`，默认）：头 `X-App-Id`、`X-Timestamp`(毫秒)、`X-Nonce`(UUID)、`X-Sign = hex(HMAC-SHA256(appSecret, appId + "\n" + timestamp + "\n" + nonce + "\n" + body))`；`sign-mode=SECRET_HEADER` 时仅携带 `X-App-Secret`。
+- 响应 JSON：`{success, pending?, code, number, checkCode, pdfUrl, providerRef, errorMsg}`。`pending:true` 表示平台受理中：本侧发票保持 `ISSUING` 并记录 `providerRef`，用 `POST /api/invoice/{id}/sync`（内部调 `/query`）或异步回调收敛终态。
+- 配置：`dms.tax.endpoint/app-id/app-secret/sign-mode/timeout-ms(默认10000)/callback-url`；回调 `POST /api/invoice/callback/{provider}`，`dms.tax.callback-token` 非空时需 `X-Tax-Callback-Token` 头。
+- 红冲：`POST /api/invoice/{id}/red-flush` 生成负数红字发票并把原票置为 `RED_FLUSHED`；红票 ISSUED 时原票→RED_FLUSHED，红票 FAILED 时原票→ISSUED（回调与 sync 同样联动）。
 - 发票状态机：`DRAFT → ISSUING → ISSUED → RED_FLUSHING → RED_FLUSHED`（失败落 FAILED，红冲失败回退 ISSUED）；开具/红冲均为原子状态抢占，防并发重复。
-- 异步回写：`POST /api/invoice/callback/{provider}`（按 providerRef 或发票号码定位；仅接受 ISSUED/FAILED/RED_FLUSHED；`dms.tax.callback-token` 非空时需携带 `X-Tax-Callback-Token` 头）。
-- 税收分类编码：工时（修理修配服务）`3040502000000000000`，备件 `1090511010000000000`。
-- `POST /api/invoice/{id}/issue` 幂等：已 ISSUED 直接返回原票。
+- 税收分类编码：工时（修理修配服务）`3040502000000000000`，备件/整车 `1090511010000000000`。
+- `POST /api/invoice/{id}/issue` 幂等：已 ISSUED 直接返回原票；`POST /api/invoice/{id}/sync` 同步 ISSUING 发票。
+
+### 联调（内置模拟税控）
+
+```bash
+cd backend && mvn -q spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=tax-sim \
+  --dms.tax.provider=HTTP --dms.tax.endpoint=http://127.0.0.1:8080/sim/tax \
+  --dms.tax.app-id=dms-app --dms.tax.app-secret=dev-tax-secret-padded-to-32-bytes"
+bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
+```
+
+`tax-sim` profile 开启 `TaxSimController`（`/sim/tax/issue|query|red-flush`，校验同一套 HMAC 签名）：remark 含 `PENDING` → 受理中（query 后返回已开）、含 `FAIL` → 拒绝、其余直接成功。
 
 ## OMS 备件补货对接
 
