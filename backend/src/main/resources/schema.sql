@@ -95,6 +95,51 @@ CREATE TABLE IF NOT EXISTS dms_vehicle_sales_order (
     price DECIMAL(18,2),
     deposit DECIMAL(18,2),
     status VARCHAR(16),                      -- NEW/ALLOCATED/INVOICED/DELIVERED/CANCELLED
+    payment_type VARCHAR(8) DEFAULT 'FULL',  -- FULL 全款 / LOAN 贷款
+    loan_provider VARCHAR(64),
+    loan_amount DECIMAL(18,2),
+    loan_term_months INT,
+    loan_status VARCHAR(16) DEFAULT 'NONE',  -- NONE/APPLIED/APPROVED/REJECTED
+    insurance_company VARCHAR(64),
+    insurance_policy_no VARCHAR(64),
+    insurance_amount DECIMAL(18,2),
+    insurance_status VARCHAR(16) DEFAULT 'NONE', -- NONE/ISSUED
+    paid_amount DECIMAL(18,2) DEFAULT 0,
+    invoice_id BIGINT,
+    survey_id BIGINT,
+    pdi_passed BOOLEAN,
+    delivered_at TIMESTAMP,
+    deliver_remark VARCHAR(255),
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+-- 兼容已有数据库的增量列
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS payment_type VARCHAR(8) DEFAULT 'FULL';
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS loan_provider VARCHAR(64);
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS loan_amount DECIMAL(18,2);
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS loan_term_months INT;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS loan_status VARCHAR(16) DEFAULT 'NONE';
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS insurance_company VARCHAR(64);
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS insurance_policy_no VARCHAR(64);
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS insurance_amount DECIMAL(18,2);
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS insurance_status VARCHAR(16) DEFAULT 'NONE';
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(18,2) DEFAULT 0;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS invoice_id BIGINT;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS survey_id BIGINT;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS pdi_passed BOOLEAN;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP;
+ALTER TABLE dms_vehicle_sales_order ADD COLUMN IF NOT EXISTS deliver_remark VARCHAR(255);
+
+-- 销售收款流水
+CREATE TABLE IF NOT EXISTS dms_sales_payment (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    dealer_code VARCHAR(32),
+    pay_type VARCHAR(16),                    -- DEPOSIT 定金/BALANCE 尾款/LOAN 贷款到账/INSURANCE 保费
+    amount DECIMAL(18,2) NOT NULL,
+    method VARCHAR(16),                      -- CASH/TRANSFER/POS/LOAN
+    paid_at TIMESTAMP,
     remark VARCHAR(255),
     created_at TIMESTAMP,
     updated_at TIMESTAMP

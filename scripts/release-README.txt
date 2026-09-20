@@ -28,7 +28,7 @@ DMS 经销商管理  v1.0.0
    （或不装 Java，用 linux-x64 原生包：./dms/bin/dms）
 
 浏览器： http://127.0.0.1:8092
-默认账号 `admin / 123456`。
+默认账号 `admin / 123456`（演示账号，仅默认开发 profile 生效；生产请加 --spring.profiles.active=prod 并配置 DMS_ADMIN_PASSWORD / DMS_JWT_SECRET，首次启动会自动创建引导 admin）。
 数据目录：当前目录 data/
 换端口： SERVER_PORT=9090 ./start.sh   或  set SERVER_PORT=9090 && start.bat
 

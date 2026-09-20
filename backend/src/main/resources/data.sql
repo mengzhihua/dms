@@ -164,6 +164,12 @@ INSERT INTO dms_survey_question(template_id,seq,text,type,weight) VALUES
 (1,3,'维修质量与一次性修复满意度（1-10分）','SCORE',0.3),
 (1,4,'交车及时性与车辆清洁满意度（1-10分）','SCORE',0.2),
 (1,5,'您愿意向亲友推荐本店吗（0-10分）','NPS',1.0);
+INSERT INTO dms_survey_template(code,name,type) VALUES ('SV02','新车销售满意度调研','SALES');
+INSERT INTO dms_survey_question(template_id,seq,text,type,weight) VALUES
+((SELECT id FROM dms_survey_template WHERE code='SV02'),1,'您对购车顾问服务的满意度（1-10分）','SCORE',0.3),
+((SELECT id FROM dms_survey_template WHERE code='SV02'),2,'您对交车流程与PDI检查的满意度（1-10分）','SCORE',0.3),
+((SELECT id FROM dms_survey_template WHERE code='SV02'),3,'您对金融/保险服务的满意度（1-10分）','SCORE',0.2),
+((SELECT id FROM dms_survey_template WHERE code='SV02'),4,'您愿意向亲友推荐本店购车吗（0-10分）','NPS',1.0);
 
 -- ============ 税率配置 ============
 INSERT INTO dms_tax_config(dealer_code,tax_rate,seller_name,seller_tax_no) VALUES

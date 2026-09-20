@@ -30,6 +30,8 @@ dms:
   auth:
     jwt-secret: test-secret-key-for-dms-jwt-signing-0123456789abcdef
     expire-hours: 12
+    ip-max-per-minute: 0
+    captcha-mode: "OFF"
   cors:
     allowed-origins: "*"
   tax:
@@ -47,3 +49,14 @@ dms:
     receive-location: RCV-01
     timeout-ms: 5000
     callback-key: ""
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  sql:
+    init:
+      data-locations: classpath:data-prod.sql
+  h2:
+    console:
+      enabled: false

@@ -224,6 +224,10 @@ public class ReplenishService {
         if (mapper.transit(o.getId(), PUSHING, PUSHED) != 1
                 && mapper.transit(o.getId(), DRAFT, PUSHED) != 1) {
             ReplenishOrder cur = mapper.selectById(o.getId());
+            if (cur != null && RECEIVED.equals(cur.getStatus())) {
+                // 并发恢复:另一实例已确认并完成入库,无需再应用快照
+                return cur;
+            }
             if (cur == null || !OPEN.contains(cur.getStatus())) {
                 String st = cur == null ? "不存在" : cur.getStatus();
                 markError(o.getId(), "OMS 已建单 " + str(remote.get("orderNo")) + " 但本地状态为 " + st + ",请人工核对");
@@ -258,16 +262,23 @@ public class ReplenishService {
                     confirmPushed(o, remote);
                 }
                 n++;
-            } catch (OmsException e) {
+            } catch (OmsException | BizException e) {
                 log.warn("补货单 {} PUSHING 恢复失败: {}", o.getReplenishNo(), e.getMessage());
             }
         }
         return n;
     }
 
+    /** 启动恢复失败不阻止应用启动,后续 syncAll 会重试 */
     @EventListener(ApplicationReadyEvent.class)
     public void recoverPushingOnStartup() {
-        int n = recoverPushing();
+        int n;
+        try {
+            n = recoverPushing();
+        } catch (RuntimeException e) {
+            log.error("启动恢复 PUSHING 补货单失败", e);
+            return;
+        }
         if (n > 0) {
             log.info("启动恢复 PUSHING 补货单 {} 张", n);
         }
