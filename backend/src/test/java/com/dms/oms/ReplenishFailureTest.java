@@ -209,6 +209,35 @@ class ReplenishFailureTest {
     }
 
     @Test
+    void concurrentRecoveryAlreadyReceivedDoesNotAbortBatch() {
+        ReplenishOrder first = service.create("D001", Collections.singletonList(item("P0012", 1)), null, null);
+        ReplenishOrder second = service.create("D001", Collections.singletonList(item("P0013", 1)), null, null);
+        for (ReplenishOrder o : Arrays.asList(first, second)) {
+            assertEquals(1, mapper.transit(o.getId(), ReplenishService.DRAFT, ReplenishService.PUSHING));
+            backdate(o.getId());
+        }
+        Map<String, Object> completed = new LinkedHashMap<>();
+        completed.put("orderNo", "SO-9");
+        completed.put("status", "COMPLETED");
+        // 另一实例已抢先把 first 确认并入库到 RECEIVED
+        when(oms.getOrder(anyString(), eq(first.getReplenishNo()))).thenAnswer(inv -> {
+            mapper.transit(first.getId(), ReplenishService.PUSHING, ReplenishService.PUSHED);
+            mapper.transit(first.getId(), ReplenishService.PUSHED, ReplenishService.SHIPPED);
+            mapper.transit(first.getId(), ReplenishService.SHIPPED, ReplenishService.RECEIVED);
+            return completed;
+        });
+        Map<String, Object> created = new LinkedHashMap<>();
+        created.put("orderNo", "SO-10");
+        created.put("status", "CREATED");
+        when(oms.getOrder(anyString(), eq(second.getReplenishNo()))).thenReturn(created);
+
+        service.recoverPushingOnStartup();
+        assertEquals(ReplenishService.RECEIVED, service.get(first.getId()).getStatus());
+        assertNull(service.get(first.getId()).getLastError());
+        assertEquals(ReplenishService.PUSHED, service.get(second.getId()).getStatus());
+    }
+
+    @Test
     void pushStillEndsPushedWhenAnotherInstanceRolledBackToDraft() {
         ReplenishOrder d = service.create("D001", Collections.singletonList(item("P0010", 1)), null, null);
         // OMS 建单期间,另一实例的恢复任务查不到远端单,已把本单回退 DRAFT
