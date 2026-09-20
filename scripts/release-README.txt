@@ -5,7 +5,7 @@ DMS 经销商管理  v1.0.0
   ./start.sh
 
 浏览器打开 http://127.0.0.1:8092
-默认账号（如有登录）：admin / admin123
+默认账号：admin / 123456（其余演示账号密码相同）
 
 数据文件写在当前目录 data/ 下。换端口：
   SERVER_PORT=9090 ./start.sh
