@@ -45,11 +45,17 @@ public class OpenIrController {
         checkKey(key);
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map<String, Object> shortage : stockService.shortage()) {
+            BigDecimal available = decimal(shortage.get("available"));
+            BigDecimal minStock = decimal(shortage.get("minStock"));
+            BigDecimal gap = minStock.subtract(available);
+            if (gap.signum() < 0) {
+                gap = BigDecimal.ZERO;
+            }
             rows.add(row("SHORTAGE",
                     shortage.get("dealerCode") + "/" + shortage.get("partNo"),
                     "SHORT",
                     String.valueOf(shortage.get("partNo")),
-                    decimal(shortage.get("available")),
+                    gap,
                     null,
                     String.valueOf(shortage.get("dealerCode")),
                     String.valueOf(shortage.get("name"))));
