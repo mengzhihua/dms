@@ -188,3 +188,10 @@ INSERT INTO sys_user(username,password_hash,real_name,role,dealer_code,enabled) 
 ('d001tech','$2a$10$3a0NQRntg9qzQcMbh/uObOsUNnXQsKlhues.grTUqa6cdtuNwR2bK','技师小李','TECHNICIAN','D001',TRUE),
 ('d001fin','$2a$10$pSIaQNaeCZdmXbo1WfXhGuV1fFa9X1qJ9BGTFYUiWeX4ak83LcdHa','财务小赵','FINANCE','D001',TRUE),
 ('d002mgr','$2a$10$0NkIZUTrB4qQ7H8QaVanyelSzpZLJkdXayMRz6tPjElzqsrZdc.We','杭州宏达-店总','DEALER_MANAGER','D002',TRUE);
+
+-- IR 控制塔：草稿补货单可直接下发 OMS
+INSERT INTO dms_replenish_order(replenish_no,dealer_code,status,source,items,remark,created_at,updated_at)
+SELECT 'RPL-IR-DRAFT','D001','DRAFT','MANUAL',
+       '[{"partNo":"P-IR-SHORT","name":"控制塔缺货演示件","qty":9,"price":25.00}]',
+       'IR 控制塔草稿补货单',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_replenish_order WHERE replenish_no='RPL-IR-DRAFT');
