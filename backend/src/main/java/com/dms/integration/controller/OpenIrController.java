@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +29,7 @@ public class OpenIrController {
     private final ReplenishService replenishService;
     private final ReplenishOrderMapper replenishMapper;
     private final String apiKey;
+    private final ConcurrentHashMap<String, Object> actionCache = new ConcurrentHashMap<String, Object>();
 
     public OpenIrController(
             PartStockService stockService,
@@ -83,13 +86,67 @@ public class OpenIrController {
                 ? (Map<String, Object>) body.get("params") : new LinkedHashMap<String, Object>();
         if ("DMS_REPLENISH_SHORTAGE".equals(type)) {
             String dealer = first(string(params.get("dealerCode")), dealerOf(targetKey), targetKey);
-            ReplenishOrder created = replenishService.createFromShortage(dealer);
-            if (created == null) {
-                throw new BizException("经销商无缺货: " + dealer);
-            }
-            return R.ok(created);
+            return R.ok(executeOnce(cacheKey(type, dealer, body.get("idempotencyKey")), () -> {
+                ReplenishOrder created = replenishService.createFromShortage(dealer);
+                if (created == null) {
+                    throw new BizException("经销商无缺货: " + dealer);
+                }
+                return created;
+            }));
+        }
+        if ("DMS_PUSH_REPLENISH".equals(type)) {
+            String no = first(string(params.get("replenishNo")), targetKey);
+            return R.ok(executeOnce(cacheKey(type, no, body.get("idempotencyKey")), () -> {
+                ReplenishOrder order = replenishOf(no);
+                if (order == null) {
+                    throw new BizException("补货单不存在: " + no);
+                }
+                return replenishService.push(order.getId());
+            }));
         }
         throw new BizException("不支持的 IR 指令: " + type);
+    }
+
+    private Object executeOnce(String cacheKey, Supplier<Object> work) {
+        if (cacheKey == null) {
+            return work.get();
+        }
+        Object cached = actionCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (actionCache) {
+            cached = actionCache.get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+            Object created = work.get();
+            actionCache.put(cacheKey, created);
+            return created;
+        }
+    }
+
+    private static String cacheKey(String type, String targetKey, Object idempotencyKey) {
+        if (idempotencyKey == null) {
+            return null;
+        }
+        String key = String.valueOf(idempotencyKey).trim();
+        if (key.isEmpty() || "null".equals(key)) {
+            return null;
+        }
+        return type + "|" + (targetKey == null ? "" : targetKey) + "|" + key;
+    }
+
+    private ReplenishOrder replenishOf(String replenishNo) {
+        if (replenishNo == null) {
+            return null;
+        }
+        for (ReplenishOrder order : replenishMapper.selectList(null)) {
+            if (replenishNo.equals(order.getReplenishNo())) {
+                return order;
+            }
+        }
+        return null;
     }
 
     private void checkKey(String key) {
