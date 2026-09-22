@@ -90,5 +90,21 @@ public class OpenIrControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("PUSHED"));
+
+        mockMvc.perform(post("/api/open/ir/replenish-shortage")
+                        .header("X-Api-Key", "dms-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dealerCode\":\"" + dealer + "\",\"idempotencyKey\":\"DMS-RPL-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.replenishNo").value(replenishNo));
+        mockMvc.perform(post("/api/open/ir/push-replenish")
+                        .header("X-Api-Key", "dms-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"replenishNo\":\"" + replenishNo
+                                + "\",\"idempotencyKey\":\"DMS-PUSH-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("PUSHED"));
     }
 }
