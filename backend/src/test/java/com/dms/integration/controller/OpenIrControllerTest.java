@@ -38,15 +38,20 @@ public class OpenIrControllerTest {
                 .andExpect(jsonPath("$.data.system").value("DMS"))
                 .andReturn().getResponse().getContentAsString();
         JsonNode shortRow = null;
+        JsonNode draft = null;
         for (JsonNode row : objectMapper.readTree(snapshots).get("data").get("snapshots")) {
             if ("SHORTAGE".equals(row.path("dataType").asText())
                     && row.path("bizKey").asText().contains("P-IR-SHORT")) {
                 shortRow = row;
-                break;
+            }
+            if ("RPL-IR-DRAFT".equals(row.path("bizKey").asText())) {
+                draft = row;
             }
         }
         assertNotNull(shortRow, "应包含 IR 缺货演示件");
         assertTrue(shortRow.path("qty").asInt() >= 9, "缺货数量应为 minStock-available");
+        assertNotNull(draft, "应包含 IR 草稿补货单");
+        assertEquals("DRAFT", draft.path("status").asText());
 
         String dealer = shortRow.path("plantCode").asText();
         String created = mockMvc.perform(post("/api/open/ir/actions")
