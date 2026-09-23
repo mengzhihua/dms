@@ -174,6 +174,12 @@ bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
 
 左侧菜单按业务分组；头部有经销商选择器（持久化 localStorage，各页面默认按所选经销商过滤）。自定义页面：工单详情（步骤条+工时/备件/日志 Tab+状态机动作按钮）、智能推荐、答卷、满意度统计、发票开具/红冲/预览、工作台卡片与排名。
 
+## 控制塔对接
+
+缺货和补货单快照，以及按缺货生成、按单号下发，见 [技术方案](docs/技术方案.md)。
+
+有 API Key 时走 `/api/open/ir/snapshots` 和 `/actions`，并回退 `/replenish-shortage`、`/push-replenish`。没有 Key 时，控制塔登录后打 `/api/oms/replenish/from-shortage`，再按补货单号查出 id 后 `push`。
+
 ## 发布包（开箱即用）
 
 前端生产构建打进 Spring Boot 可执行 JAR。三种用法：
