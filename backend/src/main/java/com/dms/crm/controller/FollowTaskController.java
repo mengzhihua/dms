@@ -1,5 +1,6 @@
 package com.dms.crm.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.BizException;
 import com.dms.common.R;
@@ -78,7 +79,7 @@ public class FollowTaskController extends BaseCrudController<FollowTask, FollowT
     /** 手工触发自动任务生成；dealerCode 空表示全部经销商。 */
     @PostMapping("/generate")
     public R<Integer> generate(@RequestBody(required = false) Map<String, Object> body) {
-        return R.ok(generator.generate(body == null ? null : str(body.get("dealerCode"))));
+        return R.ok(generator.generate(DataScope.effectiveDealer(body == null ? null : str(body.get("dealerCode")))));
     }
 
     private static String str(Object o) {

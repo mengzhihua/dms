@@ -1,6 +1,7 @@
 package com.dms.crm.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.crm.entity.NotifyMessage;
 import com.dms.crm.entity.NotifyTemplate;
@@ -54,6 +55,7 @@ public class NotifyService {
     /** FAILED 消息重发。 */
     public NotifyMessage retry(Long id) {
         NotifyMessage m = mustGet(id);
+        DataScope.check(m.getDealerCode());
         if (!"FAILED".equals(m.getStatus())) {
             throw new BizException("仅失败消息可重发");
         }

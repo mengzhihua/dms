@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
+import com.dms.crm.service.FollowTaskGenerator;
 import com.dms.customer.entity.Vehicle;
 import com.dms.customer.entity.VehicleModel;
 import com.dms.customer.mapper.VehicleMapper;
@@ -63,8 +64,7 @@ public class WorkOrderService {
     private final CodeGenerator codeGenerator;
     private final InvoiceService invoiceService;
     private final SurveyService surveyService;
-    // 售后回访任务生成；字段注入避免改动既有手工构造调用
-    @Autowired private com.dms.crm.service.FollowTaskGenerator followTaskGenerator;
+    @Autowired private FollowTaskGenerator followTaskGenerator;
 
     public WorkOrder mustGet(Long id) {
         WorkOrder o = orderMapper.selectById(id);
@@ -536,7 +536,6 @@ public class WorkOrderService {
         try {
             followTaskGenerator.createForOrder(o);
         } catch (RuntimeException e) {
-            // 售后回访任务生成失败不阻断交车
             log.warn("生成售后回访任务失败: {}", e.getMessage());
         }
         return o;
