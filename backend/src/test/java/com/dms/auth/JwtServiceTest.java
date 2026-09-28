@@ -9,7 +9,7 @@ class JwtServiceTest {
 
     @Test
     void roundTrip() {
-        JwtService s = new JwtService(SECRET, 12);
+        JwtService s = new JwtService(SECRET, 12, null);
         LoginUser in = new LoginUser(7L, "d001sa", Role.ADVISOR, "D001");
         String token = s.issue(in);
         LoginUser out = s.parse(token);
@@ -23,7 +23,7 @@ class JwtServiceTest {
 
     @Test
     void expiredTokenRejected() {
-        JwtService s = new JwtService(SECRET, -1);
+        JwtService s = new JwtService(SECRET, -1, null);
         String token = s.issue(new LoginUser(1L, "admin", Role.ADMIN, null));
         assertNull(s.parse(token));
     }
@@ -31,16 +31,27 @@ class JwtServiceTest {
     @Test
     void shortSecretThrows() {
         IllegalStateException e =
-                assertThrows(IllegalStateException.class, () -> new JwtService("short", 12));
+                assertThrows(IllegalStateException.class, () -> new JwtService("short", 12, null));
         assertTrue(e.getMessage().contains("32"));
     }
 
     @Test
+    void prodProfileRequiresSecret() {
+        org.springframework.core.env.Environment env =
+                new org.springframework.mock.env.MockEnvironment().withProperty(
+                        "spring.profiles.active", "prod");
+        IllegalStateException e =
+                assertThrows(
+                        IllegalStateException.class, () -> new JwtService("", 12, env));
+        assertTrue(e.getMessage().contains("jwt-secret"));
+    }
+
+    @Test
     void tamperedTokenRejected() {
-        JwtService s = new JwtService(SECRET, 12);
+        JwtService s = new JwtService(SECRET, 12, null);
         String token = s.issue(new LoginUser(1L, "admin", Role.ADMIN, null));
         assertNull(s.parse(token.substring(0, token.length() - 3) + "xyz"));
         assertNull(s.parse("garbage"));
-        assertNull(new JwtService("another-secret-key-0123456789abcdef0123", 12).parse(token));
+        assertNull(new JwtService("another-secret-key-0123456789abcdef0123", 12, null).parse(token));
     }
 }

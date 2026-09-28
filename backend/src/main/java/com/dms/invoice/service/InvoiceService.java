@@ -41,6 +41,7 @@ public class InvoiceService {
     private final InvoiceMapper invoiceMapper;
     private final InvoiceLineMapper lineMapper;
     private final TaxConfigMapper taxConfigMapper;
+    private final com.dms.network.mapper.VehicleSalesOrderMapper salesOrderMapper;
     private final WorkOrderMapper orderMapper;
     private final WorkOrderLaborMapper laborMapper;
     private final WorkOrderPartMapper partMapper;
@@ -51,6 +52,7 @@ public class InvoiceService {
             InvoiceMapper invoiceMapper,
             InvoiceLineMapper lineMapper,
             TaxConfigMapper taxConfigMapper,
+            com.dms.network.mapper.VehicleSalesOrderMapper salesOrderMapper,
             WorkOrderMapper orderMapper,
             WorkOrderLaborMapper laborMapper,
             WorkOrderPartMapper partMapper,
@@ -59,6 +61,7 @@ public class InvoiceService {
         this.invoiceMapper = invoiceMapper;
         this.lineMapper = lineMapper;
         this.taxConfigMapper = taxConfigMapper;
+        this.salesOrderMapper = salesOrderMapper;
         this.orderMapper = orderMapper;
         this.laborMapper = laborMapper;
         this.partMapper = partMapper;
@@ -77,10 +80,11 @@ public class InvoiceService {
                 @Value("${dms.tax.app-secret:}") String appSecret,
                 @Value("${dms.tax.sign-mode:HMAC}") String signMode,
                 @Value("${dms.tax.timeout-ms:10000}") int timeoutMs,
-                @Value("${dms.tax.callback-url:}") String callbackUrl) {
+                @Value("${dms.tax.callback-url:}") String callbackUrl,
+                @Value("${dms.tax.allow-insecure:false}") boolean allowInsecure) {
             if ("HTTP".equalsIgnoreCase(provider)) {
                 return new HttpTaxAdapter(
-                        endpoint, appId, appSecret, signMode, timeoutMs, callbackUrl);
+                        endpoint, appId, appSecret, signMode, timeoutMs, callbackUrl, allowInsecure);
             }
             return new MockTaxAdapter(mockFailRate);
         }
@@ -93,6 +97,9 @@ public class InvoiceService {
 
     private void fillSellerAndAmounts(Invoice inv, BigDecimal amount) {
         TaxConfig tc = taxConfig(inv.getDealerCode());
+        if (tc == null) {
+            throw new BizException("未配置税务信息: " + inv.getDealerCode());
+        }
         BigDecimal rate =
                 inv.getTaxRate() != null
                         ? inv.getTaxRate()
@@ -246,6 +253,13 @@ public class InvoiceService {
         if ("ISSUED".equals(inv.getStatus())) {
             return inv;
         }
+        if (inv.getSalesOrderId() != null) {
+            com.dms.network.entity.VehicleSalesOrder so =
+                    salesOrderMapper.selectById(inv.getSalesOrderId());
+            if (so != null && "CANCELLED".equals(so.getStatus())) {
+                throw new BizException("订单已取消，不能开票");
+            }
+        }
         List<InvoiceLine> lines = lines(id);
         // 原子抢占 ISSUING，防止并发重复开具
         if (invoiceMapper.markIssuing(id) == 0) {
@@ -306,7 +320,20 @@ public class InvoiceService {
         red.setRedOfInvoiceId(orig.getId());
         red.setStatus("ISSUING");
         invoiceMapper.insert(red);
-        List<InvoiceLine> redLines = lines(orig.getId());
+        // 传给税控平台的红票明细必须为负数，但不落库
+        List<InvoiceLine> redLines = new java.util.ArrayList<>();
+        for (InvoiceLine l : lines(orig.getId())) {
+            InvoiceLine c = new InvoiceLine();
+            c.setName(l.getName());
+            c.setUnit(l.getUnit());
+            c.setQty(l.getQty() == null ? null : l.getQty().negate());
+            c.setUnitPrice(l.getUnitPrice());
+            c.setAmount(l.getAmount() == null ? null : l.getAmount().negate());
+            c.setTaxRate(l.getTaxRate());
+            c.setTaxAmount(l.getTaxAmount() == null ? null : l.getTaxAmount().negate());
+            c.setTaxCategoryCode(l.getTaxCategoryCode());
+            redLines.add(c);
+        }
         TaxInvoiceGateway.IssueResult r = gateway.redFlush(orig, red, redLines);
         if (r.isSuccess() && r.isPending()) {
             // 受理中：红票保持 ISSUING，原票保持 RED_FLUSHING
@@ -357,7 +384,8 @@ public class InvoiceService {
                 orig.setStatus("RED_FLUSHED");
                 invoiceMapper.updateById(orig);
             }
-        } else if (!r.isSuccess()) {
+        } else if (!r.isSuccess() && !r.isRetryable()) {
+            // 平台明确拒绝才置 FAILED；超时/网络等可重试错误保持 ISSUING
             inv.setStatus("FAILED");
             inv.setErrorMsg(r.getErrorMsg());
             if (inv.getRedOfInvoiceId() != null) {
@@ -365,6 +393,8 @@ public class InvoiceService {
                 orig.setStatus("ISSUED");
                 invoiceMapper.updateById(orig);
             }
+        } else if (!r.isSuccess()) {
+            inv.setErrorMsg(r.getErrorMsg());
         }
         invoiceMapper.updateById(inv);
         return inv;
@@ -420,14 +450,28 @@ public class InvoiceService {
             if ("ISSUED".equals(status)) {
                 inv.setIssuedTime(LocalDateTime.now());
             }
+            if (body.get("taxInvoiceCode") != null) {
+                inv.setTaxInvoiceCode((String) body.get("taxInvoiceCode"));
+            }
+            if (body.get("taxInvoiceNumber") != null) {
+                inv.setTaxInvoiceNumber((String) body.get("taxInvoiceNumber"));
+            }
+            if (body.get("checkCode") != null) {
+                inv.setCheckCode((String) body.get("checkCode"));
+            }
+            if (body.get("pdfUrl") != null) {
+                inv.setPdfUrl((String) body.get("pdfUrl"));
+            }
             inv.setErrorMsg((String) body.get("errorMsg"));
             invoiceMapper.updateById(inv);
-            // 红字发票终态联动原票
+            // 红字发票终态联动原票：仅当原票仍处于红冲中间态时回写，迟到回调不恢复
             if (inv.getRedOfInvoiceId() != null
                     && ("ISSUED".equals(status) || "FAILED".equals(status))) {
                 Invoice orig = mustGet(inv.getRedOfInvoiceId());
-                orig.setStatus("ISSUED".equals(status) ? "RED_FLUSHED" : "ISSUED");
-                invoiceMapper.updateById(orig);
+                if ("RED_FLUSHING".equals(orig.getStatus())) {
+                    orig.setStatus("ISSUED".equals(status) ? "RED_FLUSHED" : "ISSUED");
+                    invoiceMapper.updateById(orig);
+                }
             }
         }
         return inv;

@@ -30,7 +30,8 @@ import org.springframework.test.context.TestPropertySource;
             "dms.tax.endpoint=http://127.0.0.1:18098/sim/tax",
             "dms.tax.app-id=dms-app",
             "dms.tax.app-secret=test-tax-app-secret-0123456789abcdef",
-            "dms.taxsim.expected-secret=wrong-secret-padded-to-32-bytes-000000"
+            "dms.taxsim.expected-secret=wrong-secret-padded-to-32-bytes-000000",
+            "dms.tax.allow-insecure=true"
         })
 class TaxSimBadSignTest {
     @Autowired TestRestTemplate http;

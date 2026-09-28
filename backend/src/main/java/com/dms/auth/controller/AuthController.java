@@ -1,6 +1,7 @@
 package com.dms.auth.controller;
 
 import com.dms.auth.CaptchaService;
+import com.dms.auth.LoginRateLimiter;
 import com.dms.auth.entity.SysUser;
 import com.dms.auth.service.AuthService;
 import com.dms.common.BizException;
@@ -15,10 +16,13 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService service;
     private final CaptchaService captchaService;
+    private final LoginRateLimiter rateLimiter;
 
-    public AuthController(AuthService service, CaptchaService captchaService) {
+    public AuthController(
+            AuthService service, CaptchaService captchaService, LoginRateLimiter rateLimiter) {
         this.service = service;
         this.captchaService = captchaService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/login")
@@ -34,7 +38,8 @@ public class AuthController {
     }
 
     @GetMapping("/captcha")
-    public R<Map<String, String>> captcha() {
+    public R<Map<String, String>> captcha(HttpServletRequest request) {
+        rateLimiter.check(rateLimiter.clientIp(request));
         return R.ok(captchaService.create());
     }
 

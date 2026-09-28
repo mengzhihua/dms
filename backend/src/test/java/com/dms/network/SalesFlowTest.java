@@ -111,7 +111,19 @@ class SalesFlowTest {
         Map<String, Object> inv = (Map<String, Object>) dd.get("invoice");
         assertEquals("DRAFT", inv.get("status"));
         assertEquals(id.longValue(), ((Number) inv.get("salesOrderId")).longValue());
-        assertEquals(2, ((java.util.List<Object>) dd.get("payments")).size());
+        // 定金 + 贷款到账(审批自动入账) + 尾款 = 3 条流水
+        assertEquals(3, ((java.util.List<Object>) dd.get("payments")).size());
+
+        // 草稿发票不能交车
+        Map<String, Object> d0 = new HashMap<>();
+        d0.put("pdiPassed", true);
+        r = post(admin, "/api/network/sales-order/" + id + "/deliver", d0);
+        assertTrue(String.valueOf(r.get("msg")).contains("发票未开具"));
+
+        // 开具发票后才可交车
+        Long invId = ((Number) inv.get("id")).longValue();
+        r = post(admin, "/api/invoice/" + invId + "/issue", new HashMap<String, Object>());
+        assertEquals(0, ((Number) r.get("code")).intValue(), String.valueOf(r));
 
         // PDI 未通过不能交付
         Map<String, Object> bad = new HashMap<>();
@@ -133,8 +145,12 @@ class SalesFlowTest {
         String admin = login("admin", "123456");
         Long id = createOrder(admin, 100000, 2000);
         post(admin, "/api/network/sales-order/" + id + "/allocate", null);
-        post(admin, "/api/network/sales-order/" + id + "/invoice",
-                new HashMap<String, Object>());
+        Map<String, Object> invoiced =
+                post(admin, "/api/network/sales-order/" + id + "/invoice",
+                        new HashMap<String, Object>());
+        Long invId =
+                ((Number) ((Map<String, Object>) invoiced.get("data")).get("invoiceId")).longValue();
+        post(admin, "/api/invoice/" + invId + "/issue", new HashMap<String, Object>());
 
         Map<String, Object> d = new HashMap<>();
         d.put("pdiPassed", true);
