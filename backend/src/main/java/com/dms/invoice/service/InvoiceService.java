@@ -10,6 +10,8 @@ import com.dms.invoice.entity.TaxConfig;
 import com.dms.invoice.mapper.InvoiceLineMapper;
 import com.dms.invoice.mapper.InvoiceMapper;
 import com.dms.invoice.mapper.TaxConfigMapper;
+import com.dms.network.entity.VehicleSalesOrder;
+import com.dms.network.mapper.VehicleSalesOrderMapper;
 import com.dms.workshop.entity.WorkOrder;
 import com.dms.workshop.entity.WorkOrderLabor;
 import com.dms.workshop.entity.WorkOrderPart;
@@ -19,6 +21,7 @@ import com.dms.workshop.mapper.WorkOrderPartMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +44,7 @@ public class InvoiceService {
     private final InvoiceMapper invoiceMapper;
     private final InvoiceLineMapper lineMapper;
     private final TaxConfigMapper taxConfigMapper;
-    private final com.dms.network.mapper.VehicleSalesOrderMapper salesOrderMapper;
+    private final VehicleSalesOrderMapper salesOrderMapper;
     private final WorkOrderMapper orderMapper;
     private final WorkOrderLaborMapper laborMapper;
     private final WorkOrderPartMapper partMapper;
@@ -52,7 +55,7 @@ public class InvoiceService {
             InvoiceMapper invoiceMapper,
             InvoiceLineMapper lineMapper,
             TaxConfigMapper taxConfigMapper,
-            com.dms.network.mapper.VehicleSalesOrderMapper salesOrderMapper,
+            VehicleSalesOrderMapper salesOrderMapper,
             WorkOrderMapper orderMapper,
             WorkOrderLaborMapper laborMapper,
             WorkOrderPartMapper partMapper,
@@ -201,7 +204,7 @@ public class InvoiceService {
     /** 整车销售订单开票：一行“整车 <modelCode> VIN <vin>”，金额=车价。 */
     @Transactional
     public Long createFromSalesOrder(
-            com.dms.network.entity.VehicleSalesOrder o,
+            VehicleSalesOrder o,
             String invoiceType,
             String buyerName,
             String buyerTaxNo) {
@@ -254,8 +257,7 @@ public class InvoiceService {
             return inv;
         }
         if (inv.getSalesOrderId() != null) {
-            com.dms.network.entity.VehicleSalesOrder so =
-                    salesOrderMapper.selectById(inv.getSalesOrderId());
+            VehicleSalesOrder so = salesOrderMapper.selectById(inv.getSalesOrderId());
             if (so != null && "CANCELLED".equals(so.getStatus())) {
                 throw new BizException("订单已取消，不能开票");
             }

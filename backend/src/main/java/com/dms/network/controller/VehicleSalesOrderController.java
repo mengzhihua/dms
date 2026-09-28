@@ -1,5 +1,6 @@
 package com.dms.network.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
 import com.dms.common.BizException;
 import com.dms.common.R;
@@ -40,7 +41,7 @@ public class VehicleSalesOrderController
         if (cur == null) {
             throw new BizException("销售订单不存在");
         }
-        com.dms.auth.DataScope.check(cur.getDealerCode());
+        DataScope.check(cur.getDealerCode());
         if (!"NEW".equals(cur.getStatus())) {
             throw new BizException("订单当前状态不允许修改");
         }
