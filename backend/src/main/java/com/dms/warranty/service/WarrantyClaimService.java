@@ -284,8 +284,10 @@ public class WarrantyClaimService {
                 || PAID.equals(c.getStatus())) {
             throw new BizException("已进入结算或已付款的索赔单不可删除");
         }
+        if (mapper.deleteUnsettled(id) == 0) {
+            throw new BizException("已进入结算或已付款的索赔单不可删除");
+        }
         lineMapper.delete(new QueryWrapper<WarrantyClaimLine>().eq("claim_id", id));
-        mapper.deleteById(id);
     }
 
     private static BigDecimal nvl(BigDecimal v) {

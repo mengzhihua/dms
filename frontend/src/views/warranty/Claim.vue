@@ -23,7 +23,7 @@
             <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
             <el-button v-if="canDealerEdit(row)" link type="primary" size="small" @click="openDetail(row)">编辑/提交</el-button>
             <el-button v-if="isOem && row.status === 'SUBMITTED'" link type="success" size="small" @click="openDetail(row)">审核</el-button>
-            <el-button v-if="!isOem && row.status === 'PARTS_RETURNING'" link type="warning" size="small" @click="openDetail(row)">发货</el-button>
+            <el-button v-if="isDealerSide && row.status === 'PARTS_RETURNING'" link type="warning" size="small" @click="openDetail(row)">发货</el-button>
             <el-button v-if="isOem && row.status === 'PARTS_SHIPPED'" link type="success" size="small" @click="openDetail(row)">签收</el-button>
           </template>
         </el-table-column>
@@ -95,7 +95,7 @@
           <el-button type="warning" @click="doReturn">退回</el-button>
           <el-button type="danger" @click="doReject">拒绝</el-button>
         </template>
-        <template v-if="!isOem && detail.status === 'PARTS_RETURNING'">
+        <template v-if="isDealerSide && detail.status === 'PARTS_RETURNING'">
           <el-input v-model="shipNo" placeholder="旧件快递单号" style="width:200px;margin-right:8px" />
           <el-button type="warning" @click="doShip">发货</el-button>
         </template>

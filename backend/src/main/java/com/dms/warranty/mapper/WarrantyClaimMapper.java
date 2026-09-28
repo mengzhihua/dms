@@ -2,6 +2,7 @@ package com.dms.warranty.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.dms.warranty.entity.WarrantyClaim;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
@@ -12,4 +13,10 @@ public interface WarrantyClaimMapper extends BaseMapper<WarrantyClaim> {
             "UPDATE dms_warranty_claim SET settlement_id=#{sid}, status='SETTLED',"
                     + " updated_at=NOW() WHERE id=#{id} AND settlement_id IS NULL AND status='APPROVED'")
     int attachToSettlement(@Param("sid") Long settlementId, @Param("id") Long claimId);
+
+    /** 仅未挂结算的索赔单可删；返回 0 表示已被并发归集。 */
+    @Delete(
+            "DELETE FROM dms_warranty_claim WHERE id=#{id} AND settlement_id IS NULL"
+                    + " AND status NOT IN ('SETTLED','PAID')")
+    int deleteUnsettled(@Param("id") Long id);
 }
