@@ -1,6 +1,7 @@
 package com.dms.warranty.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.warranty.entity.WarrantyClaim;
@@ -35,7 +36,8 @@ public class WarrantySettlementService {
 
     /**
      * 生成结算批次：归集该经销商 APPROVED 且未结算的索赔单；
-     * period(yyyy-MM) 非空时限定核准月份。无单可结则报错。
+     * period(yyyy-MM) 非空时限定核准月份（无核准时间的旧单按创建时间）；
+     * 挂账用条件 UPDATE 防并发重复归集；无可挂账单据则整体回滚。
      */
     @Transactional
     public WarrantySettlement generate(Map<String, Object> body) {
@@ -45,6 +47,7 @@ public class WarrantySettlementService {
         if (dealerCode == null || dealerCode.isEmpty()) {
             throw new BizException("请选择经销商");
         }
+        DataScope.check(dealerCode);
         String period = body.get("period") == null ? null : String.valueOf(body.get("period")).trim();
         QueryWrapper<WarrantyClaim> q = new QueryWrapper<>();
         q.eq("dealer_code", dealerCode)
@@ -54,8 +57,10 @@ public class WarrantySettlementService {
         List<WarrantyClaim> claims = claimMapper.selectList(q);
         if (period != null && !period.isEmpty()) {
             YearMonth ym = YearMonth.parse(period, DateTimeFormatter.ofPattern("yyyy-MM"));
-            claims.removeIf(c -> c.getApprovedAt() == null
-                    || !YearMonth.from(c.getApprovedAt()).equals(ym));
+            claims.removeIf(c -> {
+                LocalDateTime t = c.getApprovedAt() != null ? c.getApprovedAt() : c.getCreatedAt();
+                return t == null || !YearMonth.from(t).equals(ym);
+            });
         }
         if (claims.isEmpty()) {
             throw new BizException("该经销商无待结算的已核准索赔单");
@@ -64,17 +69,24 @@ public class WarrantySettlementService {
         s.setSettlementNo(codeGenerator.next("WS"));
         s.setDealerCode(dealerCode);
         s.setPeriod(period);
-        s.setClaimCount(claims.size());
-        s.setTotalAmount(claims.stream()
-                .map(c -> c.getApprovedAmount() == null ? BigDecimal.ZERO : c.getApprovedAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
         s.setStatus("DRAFT");
         mapper.insert(s);
+
+        BigDecimal total = BigDecimal.ZERO;
+        int attached = 0;
         for (WarrantyClaim c : claims) {
-            c.setSettlementId(s.getId());
-            c.setStatus(WarrantyClaimService.SETTLED);
-            claimMapper.updateById(c);
+            if (claimMapper.attachToSettlement(s.getId(), c.getId()) == 1) {
+                attached++;
+                total = total.add(
+                        c.getApprovedAmount() != null ? c.getApprovedAmount() : nvl(c.getAmount()));
+            }
         }
+        if (attached == 0) {
+            throw new BizException("该经销商无待结算的已核准索赔单");
+        }
+        s.setClaimCount(attached);
+        s.setTotalAmount(total);
+        mapper.updateById(s);
         return s;
     }
 
@@ -106,8 +118,33 @@ public class WarrantySettlementService {
         return s;
     }
 
+    /** 删除草稿结算单：归还其索赔单为 APPROVED、清 settlementId。 */
+    @Transactional
+    public void delete(Long id) {
+        WarrantySettlement s = mustGet(id);
+        DataScope.check(s.getDealerCode());
+        if (!"DRAFT".equals(s.getStatus())) {
+            throw new BizException("仅草稿结算单可删除");
+        }
+        for (WarrantyClaim c : claims(id)) {
+            com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<WarrantyClaim> u =
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+            u.eq("id", c.getId())
+                    .set("settlement_id", null)
+                    .set("status", WarrantyClaimService.APPROVED);
+            claimMapper.update(null, u);
+        }
+        mapper.deleteById(id);
+    }
+
     public List<WarrantyClaim> claims(Long id) {
+        WarrantySettlement s = mustGet(id);
+        DataScope.check(s.getDealerCode());
         return claimMapper.selectList(
                 new QueryWrapper<WarrantyClaim>().eq("settlement_id", id).orderByAsc("id"));
+    }
+
+    private static BigDecimal nvl(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 }

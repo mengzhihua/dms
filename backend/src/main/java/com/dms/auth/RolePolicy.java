@@ -21,6 +21,7 @@ public class RolePolicy {
                     "/api/warranty/claim/*/reject",
                     "/api/warranty/claim/*/return",
                     "/api/warranty/claim/*/receive",
+                    "/api/warranty/settlement",
                     "/api/warranty/settlement/**");
 
     /** 经销商经理禁止写：经销商主数据、目标、考核、指导库主数据、调研模板、用户管理。 */
@@ -40,6 +41,7 @@ public class RolePolicy {
                     "/api/warranty/claim/*/reject",
                     "/api/warranty/claim/*/return",
                     "/api/warranty/claim/*/receive",
+                    "/api/warranty/settlement",
                     "/api/warranty/settlement/**");
 
     /** 服务顾问可写：工单全流程、客户车辆、调研记录/答卷/投诉、备件预留释放、OMS 补货。 */

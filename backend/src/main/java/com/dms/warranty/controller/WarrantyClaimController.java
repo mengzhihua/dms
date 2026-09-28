@@ -1,6 +1,7 @@
 package com.dms.warranty.controller;
 
 import com.dms.common.BaseCrudController;
+import com.dms.common.BizException;
 import com.dms.common.R;
 import com.dms.warranty.entity.WarrantyClaim;
 import com.dms.warranty.entity.WarrantyClaimLine;
@@ -8,6 +9,7 @@ import com.dms.warranty.mapper.WarrantyClaimMapper;
 import com.dms.warranty.service.WarrantyClaimService;
 import java.util.List;
 import java.util.Map;
+import javax.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -43,6 +45,19 @@ public class WarrantyClaimController extends BaseCrudController<WarrantyClaim, W
             body.put("remark", entity.getRemark());
         }
         return R.ok(service.update(id, body));
+    }
+
+    @Override
+    @PostMapping
+    public R<WarrantyClaim> create(@Valid @RequestBody WarrantyClaim entity) {
+        throw new BizException("索赔单由工单结算自动生成，不可手工创建");
+    }
+
+    @Override
+    @DeleteMapping("/{id}")
+    public R<Void> delete(@PathVariable Long id) {
+        service.delete(id);
+        return R.ok();
     }
 
     @PostMapping("/{id}/submit")
