@@ -1,7 +1,10 @@
 package com.dms.warranty.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.dms.auth.DataScope;
+import com.dms.auth.LoginUser;
+import com.dms.auth.UserContext;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
 import com.dms.warranty.entity.WarrantyClaim;
@@ -123,18 +126,22 @@ public class WarrantySettlementService {
     public void delete(Long id) {
         WarrantySettlement s = mustGet(id);
         DataScope.check(s.getDealerCode());
-        if (!"DRAFT".equals(s.getStatus())) {
+        LoginUser user = UserContext.get();
+        if (user != null && !user.networkWide()) {
+            throw new BizException("仅厂家可删除结算单");
+        }
+        if (mapper.deleteDraft(id) == 0) {
             throw new BizException("仅草稿结算单可删除");
         }
-        for (WarrantyClaim c : claims(id)) {
-            com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<WarrantyClaim> u =
-                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+        List<WarrantyClaim> attached = claimMapper.selectList(
+                new QueryWrapper<WarrantyClaim>().eq("settlement_id", id));
+        for (WarrantyClaim c : attached) {
+            UpdateWrapper<WarrantyClaim> u = new UpdateWrapper<>();
             u.eq("id", c.getId())
                     .set("settlement_id", null)
                     .set("status", WarrantyClaimService.APPROVED);
             claimMapper.update(null, u);
         }
-        mapper.deleteById(id);
     }
 
     public List<WarrantyClaim> claims(Long id) {
