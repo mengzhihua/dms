@@ -95,7 +95,8 @@ public class RolePolicy {
                     "/api/network/dealer/**",
                     "/api/network/technician/**",
                     "/api/network/bay/**",
-                    "/api/dashboard/**");
+                    "/api/dashboard/**",
+                    "/api/procure/**");
     /** 技师可写：工单开工/完工/质检。 */
     private static final List<String> TECH_WRITE =
             Arrays.asList(

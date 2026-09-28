@@ -27,7 +27,7 @@
             <el-button v-if="isOem && row.status === 'SUBMITTED'" link type="success" size="small" @click="confirmRow = row; confirmVisible = true">确认</el-button>
             <el-button v-if="isOem && row.status === 'SUBMITTED'" link type="warning" size="small" @click="doReject(row)">退回</el-button>
             <el-button v-if="isDealerSide && ['DRAFT','SUBMITTED'].includes(row.status)" link type="danger" size="small" @click="doCancel(row)">取消</el-button>
-            <el-button v-if="isDealerSide && ['CONFIRMED','PARTIAL_RECEIVED'].includes(row.status)" link type="warning" size="small" @click="openDetail(row); recvVisible = true">到货</el-button>
+            <el-button v-if="isDealerSide && ['CONFIRMED','PARTIAL_RECEIVED'].includes(row.status)" link type="warning" size="small" @click="openDetail(row, true)">到货</el-button>
             <el-button v-if="isDealerSide && row.status === 'RECEIVED'" link type="info" size="small" @click="doClose(row)">关闭</el-button>
           </template>
         </el-table-column>
@@ -149,8 +149,8 @@ const statuses = [
 const parts = ref([])
 
 const role = computed(() => store.user?.role)
-const isOem = computed(() => ['OEM'].includes(role.value))
-const isDealerSide = computed(() => role.value !== 'OEM')
+const isOem = computed(() => ['OEM', 'ADMIN'].includes(role.value))
+const isDealerSide = computed(() => ['DEALER_MANAGER', 'ADVISOR'].includes(role.value))
 
 const createVisible = ref(false)
 const form = reactive({ expectDate: '', remark: '', lines: [] })
@@ -206,7 +206,7 @@ async function doFromShortage() {
   await load()
 }
 
-async function openDetail(row) {
+async function openDetail(row, receive = false) {
   detail.value = row
   lines.value = (await procure.orderLines(row.id)) || []
   receipts.value = (await procure.orderReceipts(row.id)) || []
@@ -214,7 +214,7 @@ async function openDetail(row) {
   lines.value.forEach((l) => {
     recvMap[l.id] = l.qty - (l.receivedQty || 0)
   })
-  recvVisible.value = false
+  recvVisible.value = receive
   drawer.value = true
 }
 

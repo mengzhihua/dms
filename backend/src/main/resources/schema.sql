@@ -723,6 +723,7 @@ CREATE TABLE IF NOT EXISTS dms_purchase_receipt_line (
     qty INT,
     unit_price DECIMAL(18,2),
     amount DECIMAL(18,2),
+    remark VARCHAR(255),
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );

@@ -267,4 +267,95 @@ class ProcurementFlowTest {
         }
         assertTrue(found, "缺货件应出现在采购明细");
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void receiveGuardsAndInquiryRestore() {
+        String sa = login("d001sa");
+        String oem = login("oem");
+
+        // 询价 → 报价 → 转订单（DRAFT, source=INQUIRY）
+        Map<String, Object> inq = new HashMap<>();
+        inq.put("dealerCode", "D001");
+        inq.put("title", "还原测试询价");
+        inq.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{ put("partNo", "P0004"); put("qty", 2); }}));
+        Map<String, Object> created = call(sa, "POST", "/api/procure/inquiry", inq);
+        Long iid = ((Number) created.get("id")).longValue();
+        call(sa, "POST", "/api/procure/inquiry/" + iid + "/send", null);
+        java.util.List<Object> iLines =
+                (java.util.List<Object>)
+                        raw(sa, "GET", "/api/procure/inquiry/" + iid + "/lines", null)
+                                .getBody().get("data");
+        Map<String, Object> q = new HashMap<>();
+        java.util.List<Object> ql = new java.util.ArrayList<>();
+        for (Object row : iLines) {
+            Map<String, Object> qq = new HashMap<>();
+            qq.put("lineId", ((Map<String, Object>) row).get("id"));
+            qq.put("quotedPrice", 11.0);
+            ql.add(qq);
+        }
+        q.put("lines", ql);
+        call(oem, "POST", "/api/procure/inquiry/" + iid + "/quote", q);
+        Map<String, Object> po = call(sa, "POST", "/api/procure/inquiry/" + iid + "/order", null);
+        Long poid = ((Number) po.get("id")).longValue();
+
+        // 删除草稿订单 → 询价还原为 QUOTED
+        call(sa, "DELETE", "/api/procure/order/" + poid, null);
+        Map<String, Object> inq2 =
+                (Map<String, Object>) raw(sa, "GET", "/api/procure/inquiry/" + iid, null)
+                        .getBody().get("data");
+        assertEquals("QUOTED", inq2.get("status"));
+
+        // 手工订单 + 确认 → 两次不带批次到货
+        Map<String, Object> manual = new HashMap<>();
+        manual.put("dealerCode", "D001");
+        manual.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{ put("partNo", "P0004"); put("qty", 3); put("unitPrice", 5); }}));
+        Map<String, Object> po2 = call(sa, "POST", "/api/procure/order", manual);
+        Long poid2 = ((Number) po2.get("id")).longValue();
+        call(sa, "POST", "/api/procure/order/" + poid2 + "/submit", null);
+        call(oem, "POST", "/api/procure/order/" + poid2 + "/confirm", new HashMap<>());
+
+        java.util.List<Object> poLines =
+                (java.util.List<Object>)
+                        raw(sa, "GET", "/api/procure/order/" + poid2 + "/lines", null)
+                                .getBody().get("data");
+        Long lid = ((Number) ((Map<String, Object>) poLines.get(0)).get("id")).longValue();
+
+        // 非法数量：超过 int 上限被拒
+        Map<String, Object> bad = new HashMap<>();
+        bad.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{
+                    put("orderLineId", lid);
+                    put("qty", 3000000000L);
+                }}));
+        ResponseEntity<Map> badRes = raw(sa, "POST", "/api/procure/order/" + poid2 + "/receive", bad);
+        assertNotEquals(0, ((Number) badRes.getBody().get("code")).intValue());
+
+        // 两次不带 batchNo 到货：各自落到以其到货单号为批次，库存行不再为 NULL 批次
+        int before = stockService.available("D001", "P0004");
+        for (int i = 0; i < 2; i++) {
+            Map<String, Object> rcv = new HashMap<>();
+            rcv.put("location", "RCV-01");
+            rcv.put("lines", Collections.singletonList(
+                    new HashMap<String, Object>() {{ put("orderLineId", lid); put("qty", 1); }}));
+            call(sa, "POST", "/api/procure/order/" + poid2 + "/receive", rcv);
+        }
+        assertEquals(before + 2, stockService.available("D001", "P0004"));
+
+        // 收货单的 batchNo 默认等于 receipt_no
+        java.util.List<Object> receipts =
+                (java.util.List<Object>)
+                        raw(sa, "GET", "/api/procure/order/" + poid2 + "/receipts", null)
+                                .getBody().get("data");
+        for (Object row : receipts) {
+            Map<String, Object> r = (Map<String, Object>) row;
+            assertEquals(r.get("receiptNo"), r.get("batchNo"));
+            // 对应库存行批次非空
+            com.dms.parts.entity.PartStock st =
+                    stockService.find("D001", "P0004", "RCV-01", String.valueOf(r.get("batchNo")));
+            assertNotNull(st);
+        }
+    }
 }
