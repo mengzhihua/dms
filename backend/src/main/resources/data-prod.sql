@@ -26,3 +26,7 @@ INSERT INTO dms_notify_template(code,name,channel,content,enabled) VALUES
 ('SERVICE_FOLLOWUP','售后回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您到店服务（{{plate}}），如有任何问题请随时联系我们。',TRUE),
 ('COMPLAINT_FOLLOWUP','投诉跟进短信','SMS','【{{dealer}}】{{name}}您好，您的反馈我们已收到，服务顾问将在{{date}}前与您联系。',TRUE),
 ('BIRTHDAY','生日关怀短信','SMS','【{{dealer}}】亲爱的{{name}}，生日快乐！本月到店可享专属礼遇。',TRUE);
+
+INSERT INTO dms_notify_template(code,name,channel,content,enabled) VALUES
+('SALES_FOLLOWUP','销售回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您选购{{plate}}，用车如有任何问题请随时联系我们。',TRUE),
+('RENEWAL','续保提醒短信','SMS','【{{dealer}}】{{name}}您好，您的爱车{{plate}}保险将于{{date}}到期，欢迎联系我们办理续保。',TRUE);

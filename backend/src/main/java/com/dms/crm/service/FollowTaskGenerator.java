@@ -84,18 +84,21 @@ public class FollowTaskGenerator {
                 }
             }
             LocalDate due = null;
+            String ref = null;
             if (v.getLastServiceDate() != null
                     && !v.getLastServiceDate().plusMonths(months).isAfter(horizon)) {
                 due = v.getLastServiceDate().plusMonths(months);
+                ref = v.getVin() + ":" + due.format(DateTimeFormatter.ofPattern("yyyy-MM"));
             } else if (v.getNextServiceMileage() != null
                     && v.getMileage() != null
                     && v.getNextServiceMileage() - v.getMileage() <= 500) {
                 due = horizon;
+                // 里程触发：引用锚定下次保养里程，避免月份漂移导致重复任务
+                ref = v.getVin() + ":KM" + v.getNextServiceMileage();
             }
             if (due == null) {
                 continue;
             }
-            String ref = v.getVin() + ":" + due.format(DateTimeFormatter.ofPattern("yyyy-MM"));
             FollowTask t = base(v.getDealerCode(), "MAINTENANCE_REMIND", ref);
             t.setVehicleId(v.getId());
             t.setCustomerId(v.getCustomerId());
@@ -142,8 +145,10 @@ public class FollowTaskGenerator {
         return t;
     }
 
-    /** 交车钩子：立即为该工单生成售后回访任务（幂等）。 */
-    @Transactional
+    /**
+     * 交车钩子：立即为该工单生成售后回访任务（幂等）。
+     * 不加事务注解：单条插入，若异常不能污染调用方事务（deliver 中已 try/catch）。
+     */
     public void createForOrder(WorkOrder o) {
         insertIfAbsent(buildServiceFollowup(o));
     }

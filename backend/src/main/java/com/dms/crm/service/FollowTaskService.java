@@ -40,6 +40,8 @@ public class FollowTaskService {
         TYPE_TEMPLATE.put("SERVICE_FOLLOWUP", "SERVICE_FOLLOWUP");
         TYPE_TEMPLATE.put("COMPLAINT_FOLLOWUP", "COMPLAINT_FOLLOWUP");
         TYPE_TEMPLATE.put("BIRTHDAY", "BIRTHDAY");
+        TYPE_TEMPLATE.put("SALES_FOLLOWUP", "SALES_FOLLOWUP");
+        TYPE_TEMPLATE.put("RENEWAL", "RENEWAL");
     }
 
     private FollowTask mustGet(Long id) {
@@ -70,24 +72,28 @@ public class FollowTaskService {
         t.setPhone(body.getPhone());
         if (t.getCustomerId() != null) {
             Customer c = customerMapper.selectById(t.getCustomerId());
-            if (c != null) {
-                if (t.getCustomerName() == null) {
-                    t.setCustomerName(c.getName());
-                }
-                if (t.getPhone() == null) {
-                    t.setPhone(c.getPhone());
-                }
+            if (c == null) {
+                throw new BizException("客户不存在");
+            }
+            DataScope.check(c.getDealerCode());
+            if (t.getCustomerName() == null) {
+                t.setCustomerName(c.getName());
+            }
+            if (t.getPhone() == null) {
+                t.setPhone(c.getPhone());
             }
         }
         if (t.getVehicleId() != null) {
             Vehicle v = vehicleMapper.selectById(t.getVehicleId());
-            if (v != null) {
-                if (t.getVin() == null) {
-                    t.setVin(v.getVin());
-                }
-                if (t.getPlateNo() == null) {
-                    t.setPlateNo(v.getPlateNo());
-                }
+            if (v == null) {
+                throw new BizException("车辆不存在");
+            }
+            DataScope.check(v.getDealerCode());
+            if (t.getVin() == null) {
+                t.setVin(v.getVin());
+            }
+            if (t.getPlateNo() == null) {
+                t.setPlateNo(v.getPlateNo());
             }
         }
         t.setType(body.getType() == null ? "MANUAL" : body.getType());
@@ -147,6 +153,10 @@ public class FollowTaskService {
         String tplCode = TYPE_TEMPLATE.get(t.getType());
         if (tplCode == null) {
             throw new BizException("该任务类型无通知模板: " + t.getType());
+        }
+        // 微信渠道优先使用 _WX 后缀模板（存在且启用时）
+        if ("WECHAT".equals(channel) && notifyService.hasTemplate(tplCode + "_WX")) {
+            tplCode = tplCode + "_WX";
         }
         Map<String, String> vars = new HashMap<>();
         vars.put("name", t.getCustomerName() == null ? "" : t.getCustomerName());
