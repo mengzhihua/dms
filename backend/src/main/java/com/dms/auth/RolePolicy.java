@@ -95,7 +95,8 @@ public class RolePolicy {
                     "/api/crm/task/*/assign",
                     "/api/crm/task/*/notify",
                     "/api/crm/task/generate",
-                    "/api/crm/message/*/retry");
+                    "/api/crm/message/*/retry",
+                    "/api/report/daily/generate");
 
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =
@@ -109,7 +110,8 @@ public class RolePolicy {
                     "/api/network/bay/**",
                     "/api/dashboard/**",
                     "/api/crm/task/**",
-                    "/api/crm/message/**");
+                    "/api/crm/message/**",
+                    "/api/report/**");
     /** 技师可写：工单开工/完工/质检。 */
     private static final List<String> TECH_WRITE =
             Arrays.asList(
