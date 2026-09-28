@@ -3,6 +3,9 @@ package com.dms.warranty;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.dms.DmsApplication;
+import com.dms.warranty.entity.WarrantyClaim;
+import com.dms.warranty.mapper.WarrantyClaimMapper;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,6 +31,7 @@ import org.springframework.http.ResponseEntity;
         })
 class WarrantyClaimFlowTest {
     @Autowired TestRestTemplate http;
+    @Autowired WarrantyClaimMapper claimMapper;
 
     private String login(String username) {
         Map<String, String> body = new HashMap<>();
@@ -224,16 +228,15 @@ class WarrantyClaimFlowTest {
     void negativeChecks() {
         String admin = login("admin");
         // 无明细行不能提交
-        Map<String, Object> empty = new HashMap<>();
-        empty.put("claimNo", "WC-EMPTY-" + System.nanoTime() % 100000000L);
-        empty.put("dealerCode", "D001");
-        empty.put("faultDesc", "空索赔单");
-        empty.put("amount", 100);
-        empty.put("status", "DRAFT");
-        Map<String, Object> emptyClaim = call(admin, "POST", "/api/warranty/claim", empty);
-        Long emptyId = ((Number) emptyClaim.get("id")).longValue();
+        WarrantyClaim empty = new WarrantyClaim();
+        empty.setClaimNo("WC-EMPTY-" + System.nanoTime() % 100000000L);
+        empty.setDealerCode("D001");
+        empty.setFaultDesc("空索赔单");
+        empty.setAmount(new BigDecimal("100"));
+        empty.setStatus("DRAFT");
+        claimMapper.insert(empty);
         ResponseEntity<Map> submitEmpty =
-                raw(admin, "POST", "/api/warranty/claim/" + emptyId + "/submit", null);
+                raw(admin, "POST", "/api/warranty/claim/" + empty.getId() + "/submit", null);
         assertNotEquals(0, ((Number) submitEmpty.getBody().get("code")).intValue());
 
         Map<String, Object> ctx = settleWarrantyOrder(admin);
@@ -260,5 +263,73 @@ class WarrantyClaimFlowTest {
         Map<String, Object> rejected =
                 call(admin, "POST", "/api/warranty/claim/" + claimId + "/reject", reject);
         assertEquals("REJECTED", rejected.get("status"));
+    }
+
+    /** 评审修复：索赔单/结算单禁止手工创建；明细接口受数据范围约束。 */
+    @Test
+    void manualCreateForbiddenAndLinesScoped() {
+        String sa = login("d001sa");
+        Map<String, Object> claim = new HashMap<>();
+        claim.put("claimNo", "WC-MANUAL-1");
+        claim.put("dealerCode", "D001");
+        claim.put("faultDesc", "手工创建");
+        claim.put("status", "DRAFT");
+        ResponseEntity<Map> c1 = raw(sa, "POST", "/api/warranty/claim", claim);
+        assertNotEquals(0, ((Number) c1.getBody().get("code")).intValue());
+
+        String oem = login("oem");
+        Map<String, Object> st = new HashMap<>();
+        st.put("dealerCode", "D001");
+        st.put("status", "DRAFT");
+        ResponseEntity<Map> c2 = raw(oem, "POST", "/api/warranty/settlement", st);
+        assertNotEquals(0, ((Number) c2.getBody().get("code")).intValue());
+
+        // 跨店读明细被拒
+        String admin = login("admin");
+        WarrantyClaim d001 = new WarrantyClaim();
+        d001.setClaimNo("WC-SCOPE-1");
+        d001.setDealerCode("D001");
+        d001.setFaultDesc("数据范围");
+        d001.setStatus("DRAFT");
+        claimMapper.insert(d001);
+        String d002 = login("d002mgr");
+        ResponseEntity<Map> denied =
+                raw(d002, "GET", "/api/warranty/claim/" + d001.getId() + "/lines", null);
+        assertNotEquals(0, ((Number) denied.getBody().get("code")).intValue());
+    }
+
+    /** 评审修复：旧数据 approvedAmount 为空按 amount 结算；删草稿结算单归还索赔单。 */
+    @Test
+    void legacyClaimAmountFallbackAndSettlementDelete() {
+        String admin = login("admin");
+        WarrantyClaim legacy = new WarrantyClaim();
+        legacy.setClaimNo("WC-LEGACY-1");
+        legacy.setDealerCode("D001");
+        legacy.setFaultDesc("旧数据无核准金额");
+        legacy.setAmount(new BigDecimal("888.00"));
+        legacy.setStatus("APPROVED");
+        claimMapper.insert(legacy);
+
+        Map<String, Object> gen = new HashMap<>();
+        gen.put("dealerCode", "D001");
+        Map<String, Object> settlement =
+                call(admin, "POST", "/api/warranty/settlement/generate", gen);
+        Long sid = ((Number) settlement.get("id")).longValue();
+        assertTrue(new BigDecimal(String.valueOf(settlement.get("totalAmount")))
+                        .compareTo(new BigDecimal("888.00")) >= 0);
+
+        // 已挂账(SETTLED)的索赔单不可删除
+        Map<String, Object> settled =
+                call(admin, "GET", "/api/warranty/claim/" + legacy.getId(), null);
+        assertEquals("SETTLED", settled.get("status"));
+        ResponseEntity<Map> delSettled =
+                raw(admin, "DELETE", "/api/warranty/claim/" + legacy.getId(), null);
+        assertNotEquals(0, ((Number) delSettled.getBody().get("code")).intValue());
+
+        // 删除草稿结算单：索赔单释放回 APPROVED 且 settlementId 清空
+        call(admin, "DELETE", "/api/warranty/settlement/" + sid, null);
+        WarrantyClaim released = claimMapper.selectById(legacy.getId());
+        assertEquals("APPROVED", released.getStatus());
+        assertNull(released.getSettlementId());
     }
 }

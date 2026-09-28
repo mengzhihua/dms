@@ -115,6 +115,8 @@ public class WarrantyClaimService {
     }
 
     public List<WarrantyClaimLine> lines(Long id) {
+        WarrantyClaim c = mustGet(id);
+        DataScope.check(c.getDealerCode());
         return lineMapper.selectList(
                 new QueryWrapper<WarrantyClaimLine>().eq("claim_id", id).orderByAsc("id"));
     }
@@ -270,6 +272,20 @@ public class WarrantyClaimService {
         c.setStatus(APPROVED);
         mapper.updateById(c);
         return c;
+    }
+
+    /** 经销商删除索赔单：已挂结算或已结算/已付款的禁止删除；同时删除明细行。 */
+    @Transactional
+    public void delete(Long id) {
+        WarrantyClaim c = mustGet(id);
+        DataScope.check(c.getDealerCode());
+        if (c.getSettlementId() != null
+                || SETTLED.equals(c.getStatus())
+                || PAID.equals(c.getStatus())) {
+            throw new BizException("已进入结算或已付款的索赔单不可删除");
+        }
+        lineMapper.delete(new QueryWrapper<WarrantyClaimLine>().eq("claim_id", id));
+        mapper.deleteById(id);
     }
 
     private static BigDecimal nvl(BigDecimal v) {
