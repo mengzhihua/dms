@@ -41,6 +41,8 @@ class CrmFlowTest {
     @Autowired NotifyMessageMapper msgMapper;
     @Autowired com.dms.crm.service.NotifyService notifyService;
     @Autowired WorkOrderMapper orderMapper;
+    @Autowired com.dms.workshop.service.WorkOrderService orderService;
+    @Autowired com.dms.crm.service.FollowTaskGenerator generator;
 
     private String login(String username) {
         Map<String, String> body = new HashMap<>();
@@ -245,6 +247,63 @@ class CrmFlowTest {
         Long c2 = countPending(v.getVin(), sa);
         assertEquals(1L, c1.longValue());
         assertEquals(1L, c2.longValue(), "同一车辆保养周期只保留一个 PENDING 提醒");
+    }
+
+    @Test
+    void deliverClosesPendingMaintenanceReminder() {
+        String sa = login("d001sa");
+        // 车辆 + 一条 PENDING 保养提醒（模拟上一周期生成）
+        Vehicle v = new Vehicle();
+        v.setVin("VREM" + System.currentTimeMillis());
+        v.setPlateNo("沪DD002");
+        v.setDealerCode("D001");
+        v.setMileage(20000);
+        v.setNextServiceMileage(30000);
+        v.setLastServiceDate(LocalDate.now().plusYears(1));
+        vehicleMapper.insert(v);
+
+        FollowTask t = new FollowTask();
+        t.setTaskNo("T-REM-" + System.currentTimeMillis());
+        t.setDealerCode("D001");
+        t.setVin(v.getVin());
+        t.setType("MAINTENANCE_REMIND");
+        t.setSource("AUTO");
+        t.setSourceRef(v.getVin() + ":KM30000");
+        t.setTitle("保养提醒");
+        t.setStatus("PENDING");
+        taskMapper.insert(t);
+        assertEquals(1L, countPending(v.getVin(), sa).longValue());
+
+        // 工单 SETTLED → 交车（deliver 内部调用 createForOrder）
+        WorkOrder o = new WorkOrder();
+        o.setOrderNo("WO-REM-T" + System.currentTimeMillis());
+        o.setDealerCode("D001");
+        o.setVehicleId(v.getId());
+        o.setVin(v.getVin());
+        o.setCustomerId(1L);
+        o.setStatus("SETTLED");
+        orderMapper.insert(o);
+        orderService.deliver(o.getId(), "tester");
+        assertEquals(0L, countPending(v.getVin(), sa).longValue());
+        assertEquals(
+                "DONE",
+                taskMapper.selectById(t.getId()).getStatus());
+
+        // 新周期可重新生成
+        v.setLastServiceDate(LocalDate.now().minusMonths(8));
+        vehicleMapper.updateById(v);
+        Map<String, Object> gen = new HashMap<>();
+        gen.put("dealerCode", "D001");
+        call(sa, "POST", "/api/crm/task/generate", gen);
+        assertEquals(1L, countPending(v.getVin(), sa).longValue());
+        // 清理本次 generate 产生的全部 PENDING 提醒（含本测试车辆），
+        // 让后续用例的 generate 重新为种子车辆建任务且 notify 选中的任务有客户手机号
+        taskMapper.delete(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<FollowTask>()
+                        .eq("type", "MAINTENANCE_REMIND")
+                        .eq("status", "PENDING"));
+        // 本测试手工插入的提醒（已置 DONE）也要删除，避免抢占 list.get(0) 影响其他用例
+        taskMapper.deleteById(t.getId());
     }
 
     private Long countPending(String vin, String token) {

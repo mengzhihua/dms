@@ -1,6 +1,7 @@
 package com.dms.crm.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.dms.common.CodeGenerator;
 import com.dms.crm.entity.FollowTask;
 import com.dms.crm.mapper.FollowTaskMapper;
@@ -150,6 +151,19 @@ public class FollowTaskGenerator {
      * 不加事务注解：单条插入，若异常不能污染调用方事务（deliver 中已 try/catch）。
      */
     public void createForOrder(WorkOrder o) {
+        if (o.getVin() != null) {
+            // 交车视为本次保养完成：关闭该车所有待处理保养提醒，下一周期才能重新生成
+            taskMapper.update(
+                    null,
+                    new UpdateWrapper<FollowTask>()
+                            .eq("dealer_code", o.getDealerCode())
+                            .eq("type", "MAINTENANCE_REMIND")
+                            .eq("vin", o.getVin())
+                            .eq("status", "PENDING")
+                            .set("status", "DONE")
+                            .set("result", "交车自动完成")
+                            .set("updated_at", LocalDateTime.now()));
+        }
         insertIfAbsent(buildServiceFollowup(o));
     }
 
