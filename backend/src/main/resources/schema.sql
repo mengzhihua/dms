@@ -397,8 +397,72 @@ CREATE TABLE IF NOT EXISTS dms_warranty_claim (
     claim_no VARCHAR(40) UNIQUE,
     order_id BIGINT,
     dealer_code VARCHAR(32),
+    vin VARCHAR(32),
+    plate_no VARCHAR(16),
+    mileage INT,
+    repair_date DATE,
+    fault_code VARCHAR(32),
+    fault_desc VARCHAR(255),
     amount DECIMAL(18,2),
-    status VARCHAR(16),                      -- SUBMITTED/APPROVED/REJECTED/PAID
+    labor_amount DECIMAL(18,2) DEFAULT 0,
+    part_amount DECIMAL(18,2) DEFAULT 0,
+    approved_amount DECIMAL(18,2),
+    oem_remark VARCHAR(255),
+    parts_return_required BOOLEAN DEFAULT FALSE,
+    return_ship_no VARCHAR(64),
+    return_shipped_at TIMESTAMP,
+    return_received_at TIMESTAMP,
+    settlement_id BIGINT,
+    submitted_at TIMESTAMP,
+    approved_at TIMESTAMP,
+    status VARCHAR(16),                      -- DRAFT/SUBMITTED/RETURNED/REJECTED/PARTS_RETURNING/PARTS_SHIPPED/APPROVED/SETTLED/PAID
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS vin VARCHAR(32);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS plate_no VARCHAR(16);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS mileage INT;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS repair_date DATE;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS fault_code VARCHAR(32);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS fault_desc VARCHAR(255);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS labor_amount DECIMAL(18,2) DEFAULT 0;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS part_amount DECIMAL(18,2) DEFAULT 0;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS approved_amount DECIMAL(18,2);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS oem_remark VARCHAR(255);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS parts_return_required BOOLEAN DEFAULT FALSE;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS return_ship_no VARCHAR(64);
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS return_shipped_at TIMESTAMP;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS return_received_at TIMESTAMP;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS settlement_id BIGINT;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP;
+ALTER TABLE dms_warranty_claim ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS dms_warranty_claim_line (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    claim_id BIGINT NOT NULL,
+    line_type VARCHAR(8),                    -- LABOR/PART
+    code VARCHAR(32),
+    name VARCHAR(128),
+    qty DECIMAL(10,2),
+    unit_price DECIMAL(18,2),
+    amount DECIMAL(18,2),
+    approved_amount DECIMAL(18,2),
+    return_required BOOLEAN DEFAULT FALSE,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_warranty_settlement (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    settlement_no VARCHAR(40) UNIQUE,
+    dealer_code VARCHAR(32),
+    period VARCHAR(7),
+    claim_count INT,
+    total_amount DECIMAL(18,2),
+    status VARCHAR(16),                      -- DRAFT/CONFIRMED/PAID
+    paid_at TIMESTAMP,
     remark VARCHAR(255),
     created_at TIMESTAMP,
     updated_at TIMESTAMP

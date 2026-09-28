@@ -8,7 +8,7 @@ import org.springframework.util.AntPathMatcher;
 public class RolePolicy {
     private static final AntPathMatcher M = new AntPathMatcher();
 
-    /** OEM 可写：网络/维修指导/车型/备件主数据/调研模板题目。 */
+    /** OEM 可写：网络/维修指导/车型/备件主数据/调研模板题目/保修索赔审核与结算。 */
     private static final List<String> OEM_WRITE =
             Arrays.asList(
                     "/api/network/**",
@@ -16,7 +16,12 @@ public class RolePolicy {
                     "/api/customer/model/**",
                     "/api/parts/part/**",
                     "/api/survey/template/**",
-                    "/api/survey/question/**");
+                    "/api/survey/question/**",
+                    "/api/warranty/claim/*/approve",
+                    "/api/warranty/claim/*/reject",
+                    "/api/warranty/claim/*/return",
+                    "/api/warranty/claim/*/receive",
+                    "/api/warranty/settlement/**");
 
     /** 经销商经理禁止写：经销商主数据、目标、考核、指导库主数据、调研模板、用户管理。 */
     private static final List<String> MGR_DENY_WRITE =
@@ -30,7 +35,12 @@ public class RolePolicy {
                     "/api/guide/bulletin/**",
                     "/api/survey/template/**",
                     "/api/survey/question/**",
-                    "/api/auth/user/**");
+                    "/api/auth/user/**",
+                    "/api/warranty/claim/*/approve",
+                    "/api/warranty/claim/*/reject",
+                    "/api/warranty/claim/*/return",
+                    "/api/warranty/claim/*/receive",
+                    "/api/warranty/settlement/**");
 
     /** 服务顾问可写：工单全流程、客户车辆、调研记录/答卷/投诉、备件预留释放、OMS 补货。 */
     private static final List<String> ADVISOR_WRITE =
@@ -44,7 +54,11 @@ public class RolePolicy {
                     "/api/parts/stock/release**",
                     "/api/parts/stock/inbound",
                     "/api/oms/replenish/**",
-                    "/api/network/sales-order/**");
+                    "/api/network/sales-order/**",
+                    "/api/warranty/claim",
+                    "/api/warranty/claim/*",
+                    "/api/warranty/claim/*/submit",
+                    "/api/warranty/claim/*/ship");
 
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =

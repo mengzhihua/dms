@@ -195,3 +195,31 @@ SELECT 'RPL-IR-DRAFT','D001','DRAFT','MANUAL',
        '[{"partNo":"P-IR-SHORT","name":"控制塔缺货演示件","qty":9,"price":25.00}]',
        'IR 控制塔草稿补货单',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM dms_replenish_order WHERE replenish_no='RPL-IR-DRAFT');
+
+-- 保修索赔演示：一单待 OEM 审核，一单已核准待结算（含明细行）
+INSERT INTO dms_warranty_claim(claim_no,order_id,dealer_code,vin,plate_no,mileage,repair_date,fault_code,fault_desc,amount,labor_amount,part_amount,parts_return_required,submitted_at,status,remark,created_at,updated_at)
+SELECT 'WC-SEED-0001',NULL,'D001','LFV3A28K7J3000001','沪A12345',8000,DATE '2025-06-10','P0301','发动机缺火，更换点火线圈',680.00,180.00,500.00,FALSE,CURRENT_TIMESTAMP,'SUBMITTED','演示索赔单-待审核',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_warranty_claim WHERE claim_no='WC-SEED-0001');
+INSERT INTO dms_warranty_claim(claim_no,order_id,dealer_code,vin,plate_no,mileage,repair_date,fault_code,fault_desc,amount,labor_amount,part_amount,approved_amount,parts_return_required,submitted_at,approved_at,status,remark,created_at,updated_at)
+SELECT 'WC-SEED-0002',NULL,'D001','LFV3A28K7J3000002','沪A67890',12000,DATE '2025-06-02','B1234','空调压缩机异响，更换压缩机',2200.00,400.00,1800.00,2100.00,FALSE,DATEADD('DAY',-3,CURRENT_TIMESTAMP),DATEADD('DAY',-1,CURRENT_TIMESTAMP),'APPROVED','演示索赔单-已核准',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_warranty_claim WHERE claim_no='WC-SEED-0002');
+INSERT INTO dms_warranty_claim_line(claim_id,line_type,code,name,qty,unit_price,amount,remark,created_at,updated_at)
+SELECT c.id,'LABOR','L001','发动机诊断工时',1.0,180.00,180.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_warranty_claim c
+WHERE c.claim_no='WC-SEED-0001'
+  AND NOT EXISTS (SELECT 1 FROM dms_warranty_claim_line l WHERE l.claim_id=c.id AND l.line_type='LABOR');
+INSERT INTO dms_warranty_claim_line(claim_id,line_type,code,name,qty,unit_price,amount,remark,created_at,updated_at)
+SELECT c.id,'PART','P0001','点火线圈',1.0,500.00,500.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_warranty_claim c
+WHERE c.claim_no='WC-SEED-0001'
+  AND NOT EXISTS (SELECT 1 FROM dms_warranty_claim_line l WHERE l.claim_id=c.id AND l.line_type='PART');
+INSERT INTO dms_warranty_claim_line(claim_id,line_type,code,name,qty,unit_price,amount,approved_amount,remark,created_at,updated_at)
+SELECT c.id,'PART','P-AC-01','空调压缩机',1.0,1800.00,1800.00,1700.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_warranty_claim c
+WHERE c.claim_no='WC-SEED-0002'
+  AND NOT EXISTS (SELECT 1 FROM dms_warranty_claim_line l WHERE l.claim_id=c.id AND l.line_type='PART');
+INSERT INTO dms_warranty_claim_line(claim_id,line_type,code,name,qty,unit_price,amount,approved_amount,remark,created_at,updated_at)
+SELECT c.id,'LABOR','L-AC-01','压缩机拆装工时',2.0,200.00,400.00,400.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_warranty_claim c
+WHERE c.claim_no='WC-SEED-0002'
+  AND NOT EXISTS (SELECT 1 FROM dms_warranty_claim_line l WHERE l.claim_id=c.id AND l.line_type='LABOR');
