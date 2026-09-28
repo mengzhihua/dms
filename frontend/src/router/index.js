@@ -66,8 +66,21 @@ export const menus = [
     icon: 'Tools',
     children: [
       { path: 'appointment', name: '预约', component: () => import('../views/workshop/Appointment.vue') },
-      { path: 'order', name: '工单列表', component: () => import('../views/workshop/OrderList.vue') },
-      { path: 'claim', name: '保修索赔', component: () => import('../views/workshop/Claim.vue') }
+      { path: 'order', name: '工单列表', component: () => import('../views/workshop/OrderList.vue') }
+    ]
+  },
+  {
+    path: '/warranty',
+    name: '保修索赔',
+    icon: 'DocumentChecked',
+    children: [
+      { path: 'claim', name: '索赔单', component: () => import('../views/warranty/Claim.vue') },
+      {
+        path: 'settlement',
+        name: '索赔结算',
+        roles: ['ADMIN', 'OEM'],
+        component: () => import('../views/warranty/Settlement.vue')
+      }
     ]
   },
   {

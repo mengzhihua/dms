@@ -1,6 +1,6 @@
-package com.dms.workshop.mapper;
+package com.dms.warranty.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.dms.workshop.entity.WarrantyClaim;
+import com.dms.warranty.entity.WarrantyClaim;
 
 public interface WarrantyClaimMapper extends BaseMapper<WarrantyClaim> {}

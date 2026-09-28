@@ -71,10 +71,6 @@ export const guide = {
 
 export const workshop = {
   appointment: crud('/workshop/appointment'),
-  claim: crud('/workshop/claim'),
-  claimApprove: (id) => http.post(`/workshop/claim/${id}/approve`),
-  claimReject: (id) => http.post(`/workshop/claim/${id}/reject`),
-  claimPay: (id) => http.post(`/workshop/claim/${id}/pay`),
   orderPage: (params) => http.get('/workshop/order/page', { params }),
   orderDetail: (id) => http.get(`/workshop/order/${id}`),
   orderCreate: (data) => http.post('/workshop/order', data),
@@ -106,6 +102,22 @@ export const invoice = {
   redFlush: (id) => http.post(`/invoice/${id}/red-flush`),
   preview: (id) => http.get(`/invoice/${id}/preview`),
   sync: (id) => http.post(`/invoice/${id}/sync`)
+}
+
+export const warranty = {
+  claim: crud('/warranty/claim'),
+  lines: (id) => http.get(`/warranty/claim/${id}/lines`),
+  submit: (id) => http.post(`/warranty/claim/${id}/submit`),
+  ship: (id, data) => http.post(`/warranty/claim/${id}/ship`, data),
+  approve: (id, data) => http.post(`/warranty/claim/${id}/approve`, data),
+  reject: (id, data) => http.post(`/warranty/claim/${id}/reject`, data),
+  returnBack: (id, data) => http.post(`/warranty/claim/${id}/return`, data),
+  receive: (id) => http.post(`/warranty/claim/${id}/receive`),
+  settlement: crud('/warranty/settlement'),
+  generate: (data) => http.post('/warranty/settlement/generate', data),
+  confirm: (id) => http.post(`/warranty/settlement/${id}/confirm`),
+  pay: (id) => http.post(`/warranty/settlement/${id}/pay`),
+  settlementClaims: (id) => http.get(`/warranty/settlement/${id}/claims`)
 }
 
 export const auth = {

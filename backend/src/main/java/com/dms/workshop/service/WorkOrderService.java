@@ -24,6 +24,7 @@ import com.dms.parts.entity.Part;
 import com.dms.parts.mapper.PartMapper;
 import com.dms.parts.service.PartStockService;
 import com.dms.survey.service.SurveyService;
+import com.dms.warranty.service.WarrantyClaimService;
 import com.dms.workshop.entity.*;
 import com.dms.workshop.mapper.*;
 import java.math.BigDecimal;
@@ -46,7 +47,7 @@ public class WorkOrderService {
     private final WorkOrderPartMapper partLineMapper;
     private final WorkOrderLogMapper logMapper;
     private final AppointmentMapper appointmentMapper;
-    private final WarrantyClaimMapper claimMapper;
+    private final WarrantyClaimService claimService;
     private final TechnicianMapper technicianMapper;
     private final BayMapper bayMapper;
     private final DealerMapper dealerMapper;
@@ -484,13 +485,7 @@ public class WorkOrderService {
         o.setSettleTime(LocalDateTime.now());
         if (o.getWarrantyAmount() != null
                 && o.getWarrantyAmount().compareTo(BigDecimal.ZERO) > 0) {
-            WarrantyClaim c = new WarrantyClaim();
-            c.setClaimNo(codeGenerator.next("WC"));
-            c.setOrderId(o.getId());
-            c.setDealerCode(o.getDealerCode());
-            c.setAmount(o.getWarrantyAmount());
-            c.setStatus("SUBMITTED");
-            claimMapper.insert(c);
+            claimService.createFromWorkOrder(o, labors(id), parts(id));
         }
         if (Boolean.TRUE.equals(body.get("needInvoice"))) {
             Long invoiceId =

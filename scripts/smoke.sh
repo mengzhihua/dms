@@ -107,11 +107,19 @@ call POST "/workshop/order/$OID2/finish" '{}' >/dev/null
 call POST "/workshop/order/$OID2/qc" '{"pass":true}' >/dev/null
 WO2=$(call POST "/workshop/order/$OID2/settle" '{}')
 test "$(echo "$WO2"|jq -r .warrantyAmount)" != "0"
-CL=$(call GET "/workshop/claim/page?size=50")
+CL=$(call GET "/warranty/claim/page?size=50")
 CLID=$(echo "$CL"|jq -r ".records[]|select(.orderId==$OID2)|.id")
 test -n "$CLID"
-call POST "/workshop/claim/$CLID/approve" >/dev/null
-call POST "/workshop/claim/$CLID/pay" >/dev/null
+test "$(call GET "/warranty/claim/$CLID" | jq -r .status)" = "DRAFT"
+call POST "/warranty/claim/$CLID/submit" >/dev/null
+CL=$(call POST "/warranty/claim/$CLID/approve" '{}')
+test "$(echo "$CL"|jq -r .status)" = "APPROVED"
+ST=$(call POST /warranty/settlement/generate "{\"dealerCode\":\"$DC\"}")
+STID=$(echo "$ST"|jq -r .id)
+test "$(echo "$ST"|jq -r .claimCount)" -ge 1
+call POST "/warranty/settlement/$STID/confirm" >/dev/null
+call POST "/warranty/settlement/$STID/pay" >/dev/null
+test "$(call GET "/warranty/claim/$CLID" | jq -r .status)" = "PAID"
 
 echo "== 10b qc fail rework does not double-consume stock"
 WO3=$(call POST /workshop/order "{\"vehicleId\":$VID,\"mileageIn\":13000,\"orderType\":\"REGULAR\",\"complaint\":\"刹车异响返工测试\",\"serviceType\":\"维修\"}")

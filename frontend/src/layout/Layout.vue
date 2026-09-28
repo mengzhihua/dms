@@ -118,7 +118,13 @@ const networkWide = computed(() => ['ADMIN', 'OEM'].includes(store.user?.role))
 const visibleMenus = computed(() => {
   const role = store.user?.role
   if (!role) return []
-  return menus.filter((m) => !m.roles || m.roles.includes(role))
+  return menus
+    .filter((m) => !m.roles || m.roles.includes(role))
+    .map((m) =>
+      m.children
+        ? { ...m, children: m.children.filter((c) => !c.roles || c.roles.includes(role)) }
+        : m
+    )
 })
 
 function onDealerChange(code) {
