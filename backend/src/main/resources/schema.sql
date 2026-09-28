@@ -741,3 +741,62 @@ CREATE TABLE IF NOT EXISTS dms_purchase_statement (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+-- ============ 客户关系：跟进任务 / 通知 ============
+ALTER TABLE dms_vehicle_model ADD COLUMN IF NOT EXISTS maintenance_interval_months INT;
+
+CREATE TABLE IF NOT EXISTS dms_follow_task (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_no VARCHAR(40) UNIQUE,
+    dealer_code VARCHAR(32),
+    customer_id BIGINT,
+    vehicle_id BIGINT,
+    vin VARCHAR(32),
+    plate_no VARCHAR(16),
+    customer_name VARCHAR(64),
+    phone VARCHAR(32),
+    type VARCHAR(32),                        -- MAINTENANCE_REMIND/SERVICE_FOLLOWUP/COMPLAINT_FOLLOWUP/SALES_FOLLOWUP/BIRTHDAY/RENEWAL/MANUAL
+    source VARCHAR(8),                       -- AUTO/MANUAL
+    source_ref VARCHAR(64),
+    title VARCHAR(128),
+    content VARCHAR(512),
+    due_date DATE,
+    status VARCHAR(16),                      -- PENDING/DONE/CANCELLED
+    assignee VARCHAR(64),
+    result VARCHAR(512),
+    done_at TIMESTAMP,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    UNIQUE(dealer_code, type, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS dms_notify_message (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    dealer_code VARCHAR(32),
+    channel VARCHAR(16),                     -- SMS/WECHAT
+    receiver VARCHAR(64),
+    template_code VARCHAR(32),
+    content VARCHAR(1024),
+    biz_type VARCHAR(32),
+    biz_id BIGINT,
+    status VARCHAR(16),                      -- PENDING/SENT/FAILED
+    provider_ref VARCHAR(64),
+    error_msg VARCHAR(255),
+    sent_at TIMESTAMP,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_notify_template (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(32) UNIQUE,
+    name VARCHAR(64),
+    channel VARCHAR(16),                     -- SMS/WECHAT/ANY
+    content VARCHAR(1024),
+    enabled BOOLEAN DEFAULT TRUE,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);

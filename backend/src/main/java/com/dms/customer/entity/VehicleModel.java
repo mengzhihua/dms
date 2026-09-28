@@ -19,4 +19,5 @@ public class VehicleModel extends BaseEntity {
     private Integer warrantyMonths;
     private Integer warrantyKm;
     private Integer maintenanceIntervalKm;
+    private Integer maintenanceIntervalMonths;
 }

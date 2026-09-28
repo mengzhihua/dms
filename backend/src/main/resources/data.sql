@@ -238,3 +238,26 @@ SELECT o.id,'P0002','机油滤清器',2,0,250.00,500.00,'演示',CURRENT_TIMESTA
 FROM dms_purchase_order o
 WHERE o.po_no='PO-SEED-0001'
   AND NOT EXISTS (SELECT 1 FROM dms_purchase_order_line l WHERE l.order_id=o.id AND l.part_no='P0002');
+
+-- ============ 通知模板（幂等） ============
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'MAINT_REMIND','保养提醒短信','SMS','【{{dealer}}】尊敬的{{name}}，您的爱车{{plate}}已临近保养期，请于{{date}}前回店保养。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='MAINT_REMIND');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'MAINT_REMIND_WX','保养提醒微信','WECHAT','{{name}}您好，{{plate}} 保养到期（{{date}}），请预约{{dealer}}。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='MAINT_REMIND_WX');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'SERVICE_FOLLOWUP','售后回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您到店服务（{{plate}}），如有任何问题请随时联系我们。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='SERVICE_FOLLOWUP');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'COMPLAINT_FOLLOWUP','投诉跟进短信','SMS','【{{dealer}}】{{name}}您好，您的反馈我们已收到，服务顾问将在{{date}}前与您联系。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='COMPLAINT_FOLLOWUP');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'BIRTHDAY','生日关怀短信','SMS','【{{dealer}}】亲爱的{{name}}，生日快乐！本月到店可享专属礼遇。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='BIRTHDAY');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'SALES_FOLLOWUP','销售回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您选购{{plate}}，用车如有任何问题请随时联系我们。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='SALES_FOLLOWUP');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'RENEWAL','续保提醒短信','SMS','【{{dealer}}】{{name}}您好，您的爱车{{plate}}保险将于{{date}}到期，欢迎联系我们办理续保。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='RENEWAL');

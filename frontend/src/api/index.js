@@ -145,6 +145,19 @@ export const procure = {
   statementOrders: (id) => http.get(`/procure/statement/${id}/orders`)
 }
 
+export const crm = {
+  task: crud('/crm/task'),
+  taskComplete: (id, result) => http.post(`/crm/task/${id}/complete`, { result }),
+  taskCancel: (id) => http.post(`/crm/task/${id}/cancel`),
+  taskAssign: (id, assignee) => http.post(`/crm/task/${id}/assign`, { assignee }),
+  taskNotify: (id, channel) => http.post(`/crm/task/${id}/notify`, { channel }),
+  taskMessages: (id) => http.get(`/crm/task/${id}/messages`),
+  taskGenerate: (dealerCode) => http.post('/crm/task/generate', { dealerCode }),
+  message: crud('/crm/message'),
+  messageRetry: (id) => http.post(`/crm/message/${id}/retry`),
+  template: crud('/crm/template')
+}
+
 export const auth = {
   login: (data) => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),

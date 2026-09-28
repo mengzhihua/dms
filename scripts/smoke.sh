@@ -203,6 +203,17 @@ PSID=$(echo "$PS"|jq -r .id); test "$(echo "$PS"|jq -r .orderCount)" -ge 1
 call POST "/procure/statement/$PSID/confirm" >/dev/null
 PS=$(call POST "/procure/statement/$PSID/pay"); test "$(echo "$PS"|jq -r .status)" = "PAID"
 
+echo "== 14c crm follow tasks"
+# 自动生成跟进任务（保养到期等）+ 通知发送
+GN=$(call POST /crm/task/generate "{\"dealerCode\":\"$DC\"}")
+test "$GN" -ge 0
+FTID=$(call GET "/crm/task/list?dealerCode=$DC&status=PENDING" | jq -r '.[0].id')
+if [ "$FTID" != "null" ]; then
+  MSG=$(call POST "/crm/task/$FTID/notify" '{"channel":"SMS"}')
+  test "$(echo "$MSG"|jq -r .status)" = "SENT" || test "$(echo "$MSG"|jq -r .status)" = "FAILED"
+  call POST "/crm/task/$FTID/complete" '{"result":"冒烟回访"}' >/dev/null
+fi
+
 echo "== 15 dashboard"
 call GET "/dashboard?dealerCode=$DC" | jq -c '{workOrderStatusCounts,todayCheckIns,monthRevenue,openComplaints,dealerRanking}'
 
