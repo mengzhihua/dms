@@ -22,4 +22,12 @@ public interface PurchaseOrderMapper extends BaseMapper<PurchaseOrder> {
             @Param("id") Long id,
             @Param("amt") java.math.BigDecimal amt,
             @Param("status") String status);
+
+    /** 若所有行已收满则置 RECEIVED；并发到货各写 PARTIAL_RECEIVED 后由该条件 UPDATE 收口。 */
+    @Update(
+            "UPDATE dms_purchase_order SET status='RECEIVED', updated_at=NOW() WHERE id=#{id}"
+                    + " AND status='PARTIAL_RECEIVED'"
+                    + " AND NOT EXISTS (SELECT 1 FROM dms_purchase_order_line l"
+                    + " WHERE l.order_id=#{id} AND COALESCE(l.received_qty,0) < l.qty)")
+    int completeIfAllReceived(@Param("id") Long id);
 }

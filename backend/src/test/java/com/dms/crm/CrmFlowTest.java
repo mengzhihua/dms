@@ -6,6 +6,9 @@ import com.dms.DmsApplication;
 import com.dms.crm.entity.FollowTask;
 import com.dms.crm.mapper.FollowTaskMapper;
 import com.dms.customer.entity.Vehicle;
+import com.dms.crm.entity.NotifyMessage;
+import com.dms.crm.mapper.NotifyMessageMapper;
+import com.dms.customer.entity.Vehicle;
 import com.dms.customer.mapper.VehicleMapper;
 import com.dms.workshop.entity.WorkOrder;
 import com.dms.workshop.mapper.WorkOrderMapper;
@@ -35,6 +38,8 @@ class CrmFlowTest {
     @Autowired TestRestTemplate http;
     @Autowired FollowTaskMapper taskMapper;
     @Autowired VehicleMapper vehicleMapper;
+    @Autowired NotifyMessageMapper msgMapper;
+    @Autowired com.dms.crm.service.NotifyService notifyService;
     @Autowired WorkOrderMapper orderMapper;
 
     private String login(String username) {
@@ -212,5 +217,117 @@ class CrmFlowTest {
         b.put("customerId", d002CustomerId);
         ResponseEntity<Map> r = raw(sa, "POST", "/api/crm/task", b);
         assertNotEquals(0, r.getBody().get("code"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void mileageThenDateReminderDedupe() {
+        String sa = login("d001sa");
+        // 造一辆仅里程触发（下次保养里程-里程<=500 且按日期未到期）的车辆
+        Vehicle v = new Vehicle();
+        v.setVin("VDEDUP" + System.currentTimeMillis());
+        v.setPlateNo("沪DD001");
+        v.setDealerCode("D001");
+        v.setMileage(19500);
+        v.setNextServiceMileage(19800);
+        v.setLastServiceDate(java.time.LocalDate.now().plusYears(1)); // 日期分支不触发
+        vehicleMapper.insert(v);
+
+        Map<String, Object> gen = new HashMap<>();
+        gen.put("dealerCode", "D001");
+        call(sa, "POST", "/api/crm/task/generate", gen);
+        Long c1 = countPending(v.getVin(), sa);
+
+        // 再让日期窗口也命中：同一周期不得生成第二个 PENDING 提醒
+        v.setLastServiceDate(java.time.LocalDate.now().minusMonths(8));
+        vehicleMapper.updateById(v);
+        call(sa, "POST", "/api/crm/task/generate", gen);
+        Long c2 = countPending(v.getVin(), sa);
+        assertEquals(1L, c1.longValue());
+        assertEquals(1L, c2.longValue(), "同一车辆保养周期只保留一个 PENDING 提醒");
+    }
+
+    private Long countPending(String vin, String token) {
+        List<Map<String, Object>> list =
+                call(token, "GET", "/api/crm/task/list?type=MAINTENANCE_REMIND&status=PENDING", null);
+        return list.stream().filter(t -> vin.equals(t.get("vin"))).count();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void adminCrossDealerReferenceRejected() {
+        String admin = login("admin");
+        String d002 = login("d002mgr");
+        List<Map<String, Object>> custs = call(d002, "GET", "/api/customer/customer/list", null);
+        assertFalse(custs.isEmpty());
+        Long d002CustomerId = ((Number) custs.get(0).get("id")).longValue();
+
+        // ADMIN 为网络范围角色：D001 任务不得引用 D002 客户
+        Map<String, Object> b = new HashMap<>();
+        b.put("dealerCode", "D001");
+        b.put("title", "跨店引用");
+        b.put("customerId", d002CustomerId);
+        ResponseEntity<Map> r = raw(admin, "POST", "/api/crm/task", b);
+        assertNotEquals(0, r.getBody().get("code"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retryFailedMessageAndChannelThrow() {
+        String sa = login("d001sa");
+        // 触发一条通知消息
+        Map<String, Object> gen = new HashMap<>();
+        gen.put("dealerCode", "D001");
+        call(sa, "POST", "/api/crm/task/generate", gen);
+        List<Map<String, Object>> list =
+                call(sa, "GET", "/api/crm/task/list?type=MAINTENANCE_REMIND&status=PENDING", null);
+        assertFalse(list.isEmpty());
+        Long taskId = ((Number) list.get(0).get("id")).longValue();
+        Map<String, Object> n = new HashMap<>();
+        n.put("channel", "SMS");
+        Map<String, Object> msg = call(sa, "POST", "/api/crm/task/" + taskId + "/notify", n);
+        Long mid = ((Number) msg.get("id")).longValue();
+        // SENT 状态不可重发
+        assertNotEquals(
+                0, raw(sa, "POST", "/api/crm/message/" + mid + "/retry", null).getBody().get("code"));
+        // 手工置 FAILED 后可重发（mock 通道再次成功）
+        NotifyMessage m = msgMapper.selectById(mid);
+        m.setStatus("FAILED");
+        msgMapper.updateById(m);
+        Map<String, Object> re = call(sa, "POST", "/api/crm/message/" + mid + "/retry", null);
+        assertEquals("SENT", re.get("status"));
+
+        // 通道抛异常：消息落回 FAILED 而不是卡在 PENDING
+        Object orig =
+                org.springframework.test.util.ReflectionTestUtils.getField(
+                        notifyService, "smsChannel");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                notifyService,
+                "smsChannel",
+                new com.dms.crm.service.NotifyChannel() {
+                            @Override
+                            public String channel() {
+                                return "SMS";
+                            }
+
+                            @Override
+                            public SendResult send(NotifyMessage mm) {
+                                throw new RuntimeException("mock channel boom");
+                            }
+                        });
+        try {
+            m.setStatus("FAILED");
+            m.setErrorMsg("x");
+            msgMapper.updateById(m);
+            assertNotEquals(
+                    0,
+                    raw(sa, "POST", "/api/crm/message/" + mid + "/retry", null)
+                            .getBody()
+                            .get("code"));
+            assertEquals("FAILED", msgMapper.selectById(mid).getStatus());
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(
+                    notifyService, "smsChannel", orig);
+        }
     }
 }

@@ -66,11 +66,19 @@ public class NotifyService {
     public NotifyMessage retry(Long id) {
         NotifyMessage m = mustGet(id);
         DataScope.check(m.getDealerCode());
-        if (mapper.claimRetry(id) == 0) {
+        if (mapper.claimRetry(id, LocalDateTime.now().minusMinutes(10)) == 0) {
             throw new BizException("仅失败消息可重发");
         }
         m.setStatus("PENDING");
-        return dispatch(m);
+        try {
+            return dispatch(m);
+        } catch (RuntimeException e) {
+            // 发送过程异常：落回 FAILED，避免消息永远停在 PENDING
+            m.setStatus("FAILED");
+            m.setErrorMsg(e.getMessage());
+            mapper.updateById(m);
+            throw new BizException("重发失败: " + e.getMessage());
+        }
     }
 
     private NotifyMessage dispatch(NotifyMessage m) {
