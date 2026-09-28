@@ -94,6 +94,13 @@ class CrmFlowTest {
                         && !String.valueOf(msg.get("content")).contains("{{"),
                 String.valueOf(msg));
 
+        // 微信渠道优先使用 MAINT_REMIND_WX 模板
+        Map<String, Object> nw = new HashMap<>();
+        nw.put("channel", "WECHAT");
+        Map<String, Object> wmsg = call(sa, "POST", "/api/crm/task/" + taskId + "/notify", nw);
+        assertEquals("MAINT_REMIND_WX", wmsg.get("templateCode"));
+        assertTrue(String.valueOf(wmsg.get("content")).contains("预约"), String.valueOf(wmsg));
+
         List<Map<String, Object>> msgs =
                 call(sa, "GET", "/api/crm/task/" + taskId + "/messages", null);
         assertFalse(msgs.isEmpty());
@@ -187,5 +194,23 @@ class CrmFlowTest {
         // 取消后可删除
         call(sa, "POST", "/api/crm/task/" + tid + "/cancel", null);
         call(sa, "DELETE", "/api/crm/task/" + tid, null);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void crossDealerCustomerRejected() {
+        String d002 = login("d002mgr");
+        String sa = login("d001sa");
+        // 取一个 D002 客户 id
+        List<Map<String, Object>> custs = call(d002, "GET", "/api/customer/customer/list", null);
+        assertFalse(custs.isEmpty());
+        Long d002CustomerId = ((Number) custs.get(0).get("id")).longValue();
+
+        Map<String, Object> b = new HashMap<>();
+        b.put("dealerCode", "D001");
+        b.put("title", "跨店任务");
+        b.put("customerId", d002CustomerId);
+        ResponseEntity<Map> r = raw(sa, "POST", "/api/crm/task", b);
+        assertNotEquals(0, r.getBody().get("code"));
     }
 }

@@ -52,13 +52,24 @@ public class NotifyService {
         return dispatch(m);
     }
 
-    /** FAILED 消息重发。 */
+    /** 模板存在且启用。 */
+    public boolean hasTemplate(String code) {
+        Long cnt =
+                templateMapper.selectCount(
+                        new QueryWrapper<NotifyTemplate>()
+                                .eq("code", code)
+                                .eq("enabled", true));
+        return cnt != null && cnt > 0;
+    }
+
+    /** FAILED 消息重发：条件 UPDATE 抢占，防止并发重发。 */
     public NotifyMessage retry(Long id) {
         NotifyMessage m = mustGet(id);
         DataScope.check(m.getDealerCode());
-        if (!"FAILED".equals(m.getStatus())) {
+        if (mapper.claimRetry(id) == 0) {
             throw new BizException("仅失败消息可重发");
         }
+        m.setStatus("PENDING");
         return dispatch(m);
     }
 
