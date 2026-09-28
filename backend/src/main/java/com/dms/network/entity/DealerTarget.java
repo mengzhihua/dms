@@ -1,5 +1,6 @@
 package com.dms.network.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.dms.common.BaseEntity;
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ import lombok.EqualsAndHashCode;
 @TableName("dms_dealer_target")
 public class DealerTarget extends BaseEntity {
     private String dealerCode;
+    @TableField("`year_month`")
     private String yearMonth;
     private Integer salesTarget;
     private Integer serviceTarget;

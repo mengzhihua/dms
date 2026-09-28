@@ -92,7 +92,7 @@ public class NetworkService {
                 targetMapper.selectOne(
                         new QueryWrapper<DealerTarget>()
                                 .eq("dealer_code", dealerCode)
-                                .eq("year_month", yearMonth));
+                                .eq("`year_month`", yearMonth));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("dealerCode", dealerCode);
         m.put("yearMonth", yearMonth);
@@ -176,7 +176,7 @@ public class NetworkService {
                 assessmentMapper.selectOne(
                         new QueryWrapper<DealerAssessment>()
                                 .eq("dealer_code", dealerCode)
-                                .eq("year_month", yearMonth));
+                                .eq("`year_month`", yearMonth));
         if (a == null) {
             a = new DealerAssessment();
             a.setDealerCode(dealerCode);

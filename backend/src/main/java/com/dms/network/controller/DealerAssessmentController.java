@@ -14,6 +14,6 @@ public class DealerAssessmentController extends BaseCrudController<DealerAssessm
     }
 
     protected String[] keywordColumns() {
-        return new String[]{"dealer_code","year_month"};
+        return new String[]{"dealer_code","`year_month`"};
     }
 }

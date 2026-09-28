@@ -14,6 +14,6 @@ public class DealerTargetController extends BaseCrudController<DealerTarget, Dea
     }
 
     protected String[] keywordColumns() {
-        return new String[]{"dealer_code","year_month"};
+        return new String[]{"dealer_code","`year_month`"};
     }
 }

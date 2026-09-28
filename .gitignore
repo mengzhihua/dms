@@ -10,3 +10,4 @@ frontend/dist/
 .DS_Store
 release/
 backend/src/main/resources/static/
+deploy/.env

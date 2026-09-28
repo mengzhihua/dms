@@ -96,7 +96,12 @@ spring:
     activate:
       on-profile: mysql
   datasource:
-    url: jdbc:mysql://localhost:3306/dms?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    url: ${DMS_DB_URL:jdbc:mysql://localhost:3306/dms?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: root
+    username: ${DMS_DB_USER:root}
+    password: ${DMS_DB_PASSWORD:root}
+    hikari:
+      maximum-pool-size: ${DMS_DB_POOL:10}
+  sql:
+    init:
+      schema-locations: classpath:schema-mysql.sql
