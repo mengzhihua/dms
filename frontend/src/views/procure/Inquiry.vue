@@ -118,8 +118,8 @@ const statuses = ['DRAFT', 'SENT', 'QUOTED', 'ORDERED', 'CLOSED']
 const parts = ref([])
 
 const role = computed(() => store.user?.role)
-const isOem = computed(() => ['OEM'].includes(role.value))
-const isDealerSide = computed(() => role.value !== 'OEM')
+const isOem = computed(() => ['OEM', 'ADMIN'].includes(role.value))
+const isDealerSide = computed(() => ['DEALER_MANAGER', 'ADVISOR'].includes(role.value))
 const canDealerAct = (row, list) => isDealerSide.value && list.includes(row.status)
 
 const createVisible = ref(false)

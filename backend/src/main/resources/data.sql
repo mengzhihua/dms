@@ -457,3 +457,9 @@ WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='COMPLAINT_FOLLOW
 INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
 SELECT 'BIRTHDAY','生日关怀短信','SMS','【{{dealer}}】亲爱的{{name}}，生日快乐！本月到店可享专属礼遇。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='BIRTHDAY');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'SALES_FOLLOWUP','销售回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您选购{{plate}}，用车如有任何问题请随时联系我们。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='SALES_FOLLOWUP');
+INSERT INTO dms_notify_template(code,name,channel,content,enabled,created_at,updated_at)
+SELECT 'RENEWAL','续保提醒短信','SMS','【{{dealer}}】{{name}}您好，您的爱车{{plate}}保险将于{{date}}到期，欢迎联系我们办理续保。',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_notify_template WHERE code='RENEWAL');

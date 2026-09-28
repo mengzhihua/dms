@@ -65,6 +65,9 @@ dms:
     api-key: ${DMS_OPEN_API_KEY:dms-open-key}
   crm:
     cron: ${DMS_CRM_CRON:0 0 8 * * ?}        # 跟进任务每日自动生成
+  report:
+    daily-cron: ${DMS_REPORT_DAILY_CRON:0 30 23 * * ?}   # 经营日报每日生成
+    pdf-font: ${DMS_REPORT_PDF_FONT:}        # PDF 中文字体文件路径；空则自动探测系统字体
   notify:
     provider: ${DMS_NOTIFY_PROVIDER:MOCK}   # MOCK | HTTP
     mock-fail-rate: 0                       # Mock 通道模拟失败概率 0~1

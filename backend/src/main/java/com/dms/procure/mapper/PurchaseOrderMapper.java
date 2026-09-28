@@ -13,4 +13,13 @@ public interface PurchaseOrderMapper extends BaseMapper<PurchaseOrder> {
                     + " updated_at=NOW() WHERE id=#{id} AND statement_id IS NULL"
                     + " AND status IN ('RECEIVED','CLOSED')")
     int attachToStatement(@Param("sid") Long statementId, @Param("id") Long orderId);
+
+    /** 原子累计到货金额并更新状态，避免读改写覆盖并发字段。 */
+    @Update(
+            "UPDATE dms_purchase_order SET received_amount=COALESCE(received_amount,0)+#{amt},"
+                    + " status=#{status}, updated_at=NOW() WHERE id=#{id}")
+    int addReceivedAmount(
+            @Param("id") Long id,
+            @Param("amt") java.math.BigDecimal amt,
+            @Param("status") String status);
 }

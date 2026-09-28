@@ -20,6 +20,7 @@
 | 维修工单 | 预约、工单全流程状态机、工时/备件行、一键带入指导、派工、质检、结算、保修索赔、取消释放预留 |
 | 满意度 | 调研模板（SCORE/NPS/TEXT）、答卷评分、NPS 统计、低分自动投诉、投诉处理 |
 | 发票管理 | 发票申请、开具（幂等）、红冲、报文预览、税控回调、MOCK/HTTP 双通道适配 |
+| 经营报表 | 多维报表（售后/销售/备件/满意度/保修/采购，日/月/经销商分组）+ Excel/PDF 导出、经营日报（定时/手工生成、历史查询、导出） |
 | 工作台 | 状态分布、当日接车、当月产值、技师利用率、缺货数、NPS、投诉、经销商产值排名 |
 
 ## 目录结构
@@ -162,7 +163,7 @@ bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
 
 ## 数据表清单
 
-`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`；`dms_replenish_order`（OMS 备件补货）；`dms_purchase_inquiry(+_line)`、`dms_purchase_order(+_line)`、`dms_purchase_receipt(+_line)`、`dms_purchase_statement`（备件采购）；`dms_warranty_claim_line`、`dms_warranty_settlement`（保修索赔）；`dms_follow_task`、`dms_notify_message`、`dms_notify_template`（客户关系）。
+`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`；`dms_replenish_order`（OMS 备件补货）；`dms_purchase_inquiry(+_line)`、`dms_purchase_order(+_line)`、`dms_purchase_receipt(+_line)`、`dms_purchase_statement`（备件采购）；`dms_warranty_claim_line`、`dms_warranty_settlement`（保修索赔）；`dms_follow_task`、`dms_notify_message`、`dms_notify_template`（客户关系）；`dms_daily_report`（经营日报）。
 
 ## API 概览（统一前缀 /api，返回 {code,msg,data}）
 
@@ -177,6 +178,7 @@ bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
 - OMS 补货：`POST /api/oms/replenish/draft|from-shortage|sync-all`；`POST /api/oms/replenish/{id}/push|sync|cancel`；`GET /api/oms/replenish/{id}/lines`、`/oms-inventory?partNos=`；OMS 回推 `POST /api/open/oms/orders/status`
 - 采购：`POST /api/procure/inquiry`（含 lines）；`POST /api/procure/inquiry/{id}/send|quote|close|order`；`POST /api/procure/order`；`POST /api/procure/order/from-shortage`；`POST /api/procure/order/{id}/submit|confirm|reject|cancel|receive|close`；`POST /api/procure/statement/generate|{id}/confirm|{id}/pay`
 - 客户关系：`POST /api/crm/task/generate`（自动生成保养/回访/投诉任务）；`POST /api/crm/task/{id}/complete|cancel|assign|notify`；`GET /api/crm/task/{id}/messages`；`POST /api/crm/message/{id}/retry`；模板 `/api/crm/template` CRUD（OEM）
+- 报表：`GET /api/report/{type}?from&to&dealerCode&groupBy`（type=workshop|sales|parts|satisfaction|warranty|procure）；`GET /api/report/{type}/export?format=xlsx|pdf`；日报 `GET/POST /api/report/daily[/generate][/page][/export]`
 - 工作台：`GET /api/dashboard?dealerCode=`
 
 ## 前端

@@ -59,3 +59,17 @@ UNION ALL
 SELECT 'BIRTHDAY','生日关怀短信','SMS','【{{dealer}}】亲爱的{{name}}，生日快乐！本月到店可享专属礼遇。',TRUE
 ) u
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_notify_template) t WHERE t.code = u.code);
+||||||| a0e22bd
+INSERT INTO dms_notify_template(code,name,channel,content,enabled) VALUES
+('MAINT_REMIND','保养提醒短信','SMS','【{{dealer}}】尊敬的{{name}}，您的爱车{{plate}}已临近保养期，请于{{date}}前回店保养。',TRUE),
+('MAINT_REMIND_WX','保养提醒微信','WECHAT','{{name}}您好，{{plate}} 保养到期（{{date}}），请预约{{dealer}}。',TRUE),
+('SERVICE_FOLLOWUP','售后回访短信','SMS','【{{dealer}}】{{name}}您好，感谢您到店服务（{{plate}}），如有任何问题请随时联系我们。',TRUE),
+('COMPLAINT_FOLLOWUP','投诉跟进短信','SMS','【{{dealer}}】{{name}}您好，您的反馈我们已收到，服务顾问将在{{date}}前与您联系。',TRUE),
+('BIRTHDAY','生日关怀短信','SMS','【{{dealer}}】亲爱的{{name}}，生日快乐！本月到店可享专属礼遇。',TRUE);
+INSERT INTO dms_notify_template(code,name,channel,content,enabled)
+SELECT u.* FROM (
+SELECT 'SALES_FOLLOWUP' AS code,'销售回访短信' AS name,'SMS' AS channel,'【{{dealer}}】{{name}}您好，感谢您选购{{plate}}，用车如有任何问题请随时联系我们。' AS content,TRUE AS enabled
+UNION ALL
+SELECT 'RENEWAL','续保提醒短信','SMS','【{{dealer}}】{{name}}您好，您的爱车{{plate}}保险将于{{date}}到期，欢迎联系我们办理续保。',TRUE
+) u
+WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_notify_template) t WHERE t.code = u.code);
