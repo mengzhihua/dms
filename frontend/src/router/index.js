@@ -84,6 +84,21 @@ export const menus = [
     ]
   },
   {
+    path: '/crm',
+    name: '客户关系',
+    icon: 'ChatDotRound',
+    children: [
+      { path: 'task', name: '跟进任务', component: () => import('../views/crm/FollowTask.vue') },
+      { path: 'notify', name: '通知记录', component: () => import('../views/crm/Notify.vue') },
+      {
+        path: 'template',
+        name: '通知模板',
+        roles: ['ADMIN', 'OEM'],
+        component: () => import('../views/crm/Template.vue')
+      }
+    ]
+  },
+  {
     path: '/procure',
     name: '备件采购',
     icon: 'ShoppingCart',

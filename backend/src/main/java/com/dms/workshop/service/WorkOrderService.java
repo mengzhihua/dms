@@ -36,9 +36,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WorkOrderService {
@@ -60,6 +63,8 @@ public class WorkOrderService {
     private final CodeGenerator codeGenerator;
     private final InvoiceService invoiceService;
     private final SurveyService surveyService;
+    // 售后回访任务生成；字段注入避免改动既有手工构造调用
+    @Autowired private com.dms.crm.service.FollowTaskGenerator followTaskGenerator;
 
     public WorkOrder mustGet(Long id) {
         WorkOrder o = orderMapper.selectById(id);
@@ -528,6 +533,12 @@ public class WorkOrderService {
         Long surveyId = surveyService.createForOrder(o);
         o.setSurveyId(surveyId);
         orderMapper.updateById(o);
+        try {
+            followTaskGenerator.createForOrder(o);
+        } catch (RuntimeException e) {
+            // 售后回访任务生成失败不阻断交车
+            log.warn("生成售后回访任务失败: {}", e.getMessage());
+        }
         return o;
     }
 

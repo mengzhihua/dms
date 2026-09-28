@@ -51,6 +51,7 @@ const dictionary = {
   PARTS_SHIPPED: ['旧件在途', 'primary'],
   CONFIRMED: ['已确认', 'primary'],
   SENT: ['已发出', 'primary'],
+  DONE: ['已完成', 'success'],
   QUOTED: ['已报价', 'warning'],
   ORDERED: ['已转订单', 'success'],
   PARTIAL_RECEIVED: ['部分到货', 'warning'],
