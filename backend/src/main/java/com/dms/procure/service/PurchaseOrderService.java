@@ -382,9 +382,11 @@ public class PurchaseOrderService {
             rl.setUnitPrice(line.getUnitPrice());
             rl.setAmount(line.getUnitPrice().multiply(new BigDecimal(qty)));
             receiptLineMapper.insert(rl);
+            if (lineMapper.addReceived(line.getId(), qty) == 0) {
+                throw new BizException("到货数量超出订单数量: " + line.getPartNo());
+            }
             stockService.inbound(o.getDealerCode(), line.getPartNo(), location, batchNo, qty);
             line.setReceivedQty((line.getReceivedQty() == null ? 0 : line.getReceivedQty()) + qty);
-            lineMapper.updateById(line);
             receivedAdd = receivedAdd.add(rl.getAmount());
         }
 

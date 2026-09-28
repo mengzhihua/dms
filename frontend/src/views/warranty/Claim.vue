@@ -132,7 +132,7 @@ const statuses = [
 
 const role = computed(() => store.user?.role)
 const isOem = computed(() => ['OEM', 'ADMIN'].includes(role.value))
-const isDealerSide = computed(() => !isOem.value)
+const isDealerSide = computed(() => role.value !== 'OEM')
 const canDealerEdit = (row) =>
   isDealerSide.value && ['DRAFT', 'RETURNED'].includes(row.status)
 
