@@ -13,6 +13,7 @@ import com.dms.procure.entity.PurchaseOrder;
 import com.dms.procure.entity.PurchaseOrderLine;
 import com.dms.procure.entity.PurchaseReceipt;
 import com.dms.procure.entity.PurchaseReceiptLine;
+import com.dms.procure.mapper.PurchaseInquiryMapper;
 import com.dms.procure.mapper.PurchaseOrderLineMapper;
 import com.dms.procure.mapper.PurchaseOrderMapper;
 import com.dms.procure.mapper.PurchaseReceiptLineMapper;
@@ -35,6 +36,7 @@ public class PurchaseOrderService {
     private final PurchaseOrderLineMapper lineMapper;
     private final PurchaseReceiptMapper receiptMapper;
     private final PurchaseReceiptLineMapper receiptLineMapper;
+    private final PurchaseInquiryMapper inquiryMapper;
     private final PartMapper partMapper;
     private final PartStockService stockService;
     private final CodeGenerator codes;
@@ -45,6 +47,7 @@ public class PurchaseOrderService {
             PurchaseOrderLineMapper lineMapper,
             PurchaseReceiptMapper receiptMapper,
             PurchaseReceiptLineMapper receiptLineMapper,
+            PurchaseInquiryMapper inquiryMapper,
             PartMapper partMapper,
             PartStockService stockService,
             CodeGenerator codes,
@@ -53,6 +56,7 @@ public class PurchaseOrderService {
         this.lineMapper = lineMapper;
         this.receiptMapper = receiptMapper;
         this.receiptLineMapper = receiptLineMapper;
+        this.inquiryMapper = inquiryMapper;
         this.partMapper = partMapper;
         this.stockService = stockService;
         this.codes = codes;
@@ -336,6 +340,9 @@ public class PurchaseOrderService {
                         ? defaultLocation
                         : String.valueOf(body.get("location")).trim();
         String batchNo = body.get("batchNo") == null ? null : String.valueOf(body.get("batchNo"));
+        if (batchNo != null && batchNo.trim().isEmpty()) {
+            batchNo = null;
+        }
 
         Map<Long, PurchaseOrderLine> byId = new LinkedHashMap<>();
         for (PurchaseOrderLine l : lines(id)) {
@@ -349,10 +356,15 @@ public class PurchaseOrderService {
             if (line == null) {
                 throw new BizException("到货行不属于该订单");
             }
-            int qty = m.get("qty") == null ? 0 : ((Number) m.get("qty")).intValue();
-            if (qty <= 0) {
-                throw new BizException("到货数量必须大于0");
+            Object qObj = m.get("qty");
+            if (!(qObj instanceof Number)) {
+                throw new BizException("到货数量非法");
             }
+            long q = ((Number) qObj).longValue();
+            if (q <= 0 || q > Integer.MAX_VALUE) {
+                throw new BizException("到货数量非法");
+            }
+            int qty = (int) q;
             int already = line.getReceivedQty() == null ? 0 : line.getReceivedQty();
             int pending = toReceive.getOrDefault(line, 0);
             if (already + pending + qty > line.getQty()) {
@@ -363,6 +375,10 @@ public class PurchaseOrderService {
 
         PurchaseReceipt r = new PurchaseReceipt();
         r.setReceiptNo(codes.next("PR"));
+        if (batchNo == null) {
+            // 默认批次=到货单号：否则 find() 以 batch_no=null 查询永不命中，产生重复库存行
+            batchNo = r.getReceiptNo();
+        }
         r.setOrderId(o.getId());
         r.setDealerCode(o.getDealerCode());
         r.setLocation(location);
@@ -390,9 +406,6 @@ public class PurchaseOrderService {
             receivedAdd = receivedAdd.add(rl.getAmount());
         }
 
-        o.setReceivedAmount(
-                (o.getReceivedAmount() == null ? BigDecimal.ZERO : o.getReceivedAmount())
-                        .add(receivedAdd));
         boolean allDone = true;
         for (PurchaseOrderLine l : lines(id)) {
             if ((l.getReceivedQty() == null ? 0 : l.getReceivedQty()) < l.getQty()) {
@@ -400,9 +413,9 @@ public class PurchaseOrderService {
                 break;
             }
         }
-        o.setStatus(allDone ? "RECEIVED" : "PARTIAL_RECEIVED");
-        mapper.updateById(o);
-        return o;
+        mapper.addReceivedAmount(
+                o.getId(), receivedAdd, allDone ? "RECEIVED" : "PARTIAL_RECEIVED");
+        return mustGet(id);
     }
 
     @Transactional
@@ -412,10 +425,18 @@ public class PurchaseOrderService {
         if (!"RECEIVED".equals(o.getStatus())) {
             throw new BizException("仅已全部到货的订单可关闭");
         }
-        o.setStatus("CLOSED");
-        o.setClosedAt(LocalDateTime.now());
-        mapper.updateById(o);
-        return o;
+        int updated =
+                mapper.update(
+                        null,
+                        new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<PurchaseOrder>()
+                                .eq("id", id)
+                                .eq("status", "RECEIVED")
+                                .set("status", "CLOSED")
+                                .set("closed_at", LocalDateTime.now()));
+        if (updated == 0) {
+            throw new BizException("仅已全部到货的订单可关闭");
+        }
+        return mustGet(id);
     }
 
     /** 仅 DRAFT/CANCELLED 可删除，连同明细。 */
@@ -428,5 +449,14 @@ public class PurchaseOrderService {
         }
         lineMapper.delete(new QueryWrapper<PurchaseOrderLine>().eq("order_id", id));
         mapper.deleteById(id);
+        if ("INQUIRY".equals(o.getSource()) && o.getInquiryId() != null) {
+            // 还原询价单为已报价，可再次转订单
+            inquiryMapper.update(
+                    null,
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<PurchaseInquiry>()
+                            .eq("id", o.getInquiryId())
+                            .eq("status", "ORDERED")
+                            .set("status", "QUOTED"));
+        }
     }
 }

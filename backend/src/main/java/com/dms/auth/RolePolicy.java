@@ -109,6 +109,7 @@ public class RolePolicy {
                     "/api/network/technician/**",
                     "/api/network/bay/**",
                     "/api/dashboard/**",
+                    "/api/procure/**",
                     "/api/crm/task/**",
                     "/api/crm/message/**",
                     "/api/report/**");
