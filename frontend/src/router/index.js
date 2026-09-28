@@ -84,6 +84,15 @@ export const menus = [
     ]
   },
   {
+    path: '/report',
+    name: '经营报表',
+    icon: 'DataAnalysis',
+    children: [
+      { path: 'multi', name: '多维报表', component: () => import('../views/report/Report.vue') },
+      { path: 'daily', name: '经营日报', component: () => import('../views/report/Daily.vue') }
+    ]
+  },
+  {
     path: '/crm',
     name: '客户关系',
     icon: 'ChatDotRound',
