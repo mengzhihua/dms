@@ -180,6 +180,29 @@ call POST "/oms/replenish/$RPID/sync" >/dev/null
 test "$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0002")" = "$((AV0+6))"
 test "$(call GET "/oms/replenish/oms-inventory?partNos=P0001,P0002"|jq length)" = "2"
 
+echo "== 14b procure order -> receive -> statement"
+# 询价 -> 报价 -> 转单 -> 提交 -> 确认 -> 到货 -> 关闭 -> 对账
+IQ=$(call POST /procure/inquiry "{\"dealerCode\":\"$DC\",\"title\":\"冒烟询价\",\"lines\":[{\"partNo\":\"P0003\",\"qty\":4}]}")
+IQID=$(echo "$IQ"|jq -r .id)
+call POST "/procure/inquiry/$IQID/send" >/dev/null
+IQL=$(call GET "/procure/inquiry/$IQID/lines")
+IQLID=$(echo "$IQL"|jq -r '.[0].id')
+call POST "/procure/inquiry/$IQID/quote" "{\"lines\":[{\"lineId\":$IQLID,\"quotedPrice\":9.5,\"leadDays\":5}],\"oemRemark\":\"冒烟报价\"}" >/dev/null
+PO=$(call POST "/procure/inquiry/$IQID/order"); POID=$(echo "$PO"|jq -r .id)
+test "$(echo "$PO"|jq -r .status)" = "DRAFT"
+call POST "/procure/order/$POID/submit" >/dev/null
+call POST "/procure/order/$POID/confirm" '{"oemOrderNo":"OEM-SMOKE-1"}' >/dev/null
+AVP=$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0003")
+POL=$(call GET "/procure/order/$POID/lines"); POLID=$(echo "$POL"|jq -r '.[0].id')
+PO=$(call POST "/procure/order/$POID/receive" "{\"location\":\"RCV-01\",\"lines\":[{\"orderLineId\":$POLID,\"qty\":4}]}")
+test "$(echo "$PO"|jq -r .status)" = "RECEIVED"
+test "$(call GET "/parts/stock/available?dealerCode=$DC&partNo=P0003")" = "$((AVP+4))"
+call POST "/procure/order/$POID/close" >/dev/null
+PS=$(call POST /procure/statement/generate "{\"dealerCode\":\"$DC\"}")
+PSID=$(echo "$PS"|jq -r .id); test "$(echo "$PS"|jq -r .orderCount)" -ge 1
+call POST "/procure/statement/$PSID/confirm" >/dev/null
+PS=$(call POST "/procure/statement/$PSID/pay"); test "$(echo "$PS"|jq -r .status)" = "PAID"
+
 echo "== 15 dashboard"
 call GET "/dashboard?dealerCode=$DC" | jq -c '{workOrderStatusCounts,todayCheckIns,monthRevenue,openComplaints,dealerRanking}'
 

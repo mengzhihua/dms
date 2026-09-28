@@ -13,6 +13,8 @@
 | 网络管理 | 经销商/直营店（4S 流程）、月度目标与达成、经销商考核（自动评分）、技师、工位、整车库存、整车销售订单（新建→分配→开票→交付） |
 | 客户车辆 | 客户档案、车型（保修月/里程、保养间隔）、车辆档案、VIN 维修历史、保修校验 |
 | 备件管理 | 备件主数据、多库位多批次库存、出入库/预留/释放流水、缺货预警 |
+| 备件采购 | 询价单（经销商询价→OEM 报价→转订单）、采购订单（提交→厂家确认→分批到货入库→关闭）、缺货一键采购、采购对账（归集→确认→付款） |
+| 保修索赔 | 结算自动建索赔单（明细拆分工时/配件）、经销商提交/旧件寄回、OEM 审核/退回/拒绝/签收、结算批次付款 |
 | 维修指导 | 工时项目、维修指导库（故障码+症状+步骤）、技术通报 TSB、智能推荐（DTC/车型/症状打分）、在线估价 |
 | 维修工单 | 预约、工单全流程状态机、工时/备件行、一键带入指导、派工、质检、结算、保修索赔、取消释放预留 |
 | 满意度 | 调研模板（SCORE/NPS/TEXT）、答卷评分、NPS 统计、低分自动投诉、投诉处理 |
@@ -22,7 +24,7 @@
 ## 目录结构
 
 ```
-backend/   Spring Boot 后端（com.dms，按业务模块分包：network/customer/parts/guide/workshop/survey/invoice/dashboard/common）
+backend/   Spring Boot 后端（com.dms，按业务模块分包：network/customer/parts/guide/workshop/warranty/procure/survey/invoice/dashboard/common）
 frontend/  Vue3 + Vite + Element Plus 前端
 scripts/   smoke.sh 全链路冒烟脚本
 ```
@@ -159,7 +161,7 @@ bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
 
 ## 数据表清单
 
-`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`；`dms_replenish_order`（OMS 备件补货）。
+`seq_no`（单号序列）；`dms_dealer`、`dms_dealer_target`、`dms_dealer_assessment`、`dms_technician`、`dms_bay`、`dms_vehicle_sales_order`、`dms_vehicle_stock`；`dms_customer`、`dms_vehicle_model`、`dms_vehicle`；`dms_part`、`dms_part_stock`、`dms_stock_movement`；`dms_labor_item`、`dms_repair_guide`、`dms_technical_bulletin`；`dms_appointment`、`dms_work_order`、`dms_work_order_labor`、`dms_work_order_part`、`dms_work_order_log`、`dms_warranty_claim`；`dms_survey_template`、`dms_survey_question`、`dms_survey`、`dms_survey_answer`、`dms_complaint`；`dms_invoice`、`dms_invoice_line`、`dms_tax_config`；`dms_replenish_order`（OMS 备件补货）；`dms_purchase_inquiry(+_line)`、`dms_purchase_order(+_line)`、`dms_purchase_receipt(+_line)`、`dms_purchase_statement`（备件采购）；`dms_warranty_claim_line`、`dms_warranty_settlement`（保修索赔）。
 
 ## API 概览（统一前缀 /api，返回 {code,msg,data}）
 
@@ -168,10 +170,11 @@ bash scripts/tax-http-smoke.sh   # 期望输出 TAX HTTP SMOKE OK
 - 车辆：`GET /api/customer/vehicle/vin/{vin}/history`；`GET /api/customer/vehicle/{id}/warranty-check?mileage=`
 - 备件：`POST /api/parts/stock/inbound`；`GET /api/parts/stock/shortage`；`GET /api/parts/stock/available`
 - 指导：`POST /api/guide/recommend` `{modelCode,dtcCodes[],symptom,dealerCode}`；`GET /api/guide/estimate?guideCode&dealerCode`
-- 工单：`POST /api/workshop/order`；`POST /api/workshop/order/{id}/labor|part`（DELETE 移除）；`POST /api/workshop/order/{id}/apply-guide/{guideCode}`；动作 `diagnose|quote|approve|dispatch|start|finish|qc|settle|deliver|close|cancel`；`GET /api/workshop/order/{id}`；索赔 `POST /api/workshop/claim/{id}/approve|reject|pay`
+- 工单：`POST /api/workshop/order`；`POST /api/workshop/order/{id}/labor|part`（DELETE 移除）；`POST /api/workshop/order/{id}/apply-guide/{guideCode}`；动作 `diagnose|quote|approve|dispatch|start|finish|qc|settle|deliver|close|cancel`；`GET /api/workshop/order/{id}`；索赔 `POST /api/warranty/claim/{id}/submit|approve|reject|return|ship|receive`，结算 `POST /api/warranty/settlement/generate|{id}/confirm|{id}/pay`
 - 满意度：`POST /api/survey/{id}/answer`；`GET /api/survey/stats`；`POST /api/survey/complaint/{id}/handle`
 - 发票：`POST /api/invoice`；`POST /api/invoice/{id}/issue|red-flush`；`GET /api/invoice/{id}/preview`；`POST /api/invoice/callback/{provider}`
 - OMS 补货：`POST /api/oms/replenish/draft|from-shortage|sync-all`；`POST /api/oms/replenish/{id}/push|sync|cancel`；`GET /api/oms/replenish/{id}/lines`、`/oms-inventory?partNos=`；OMS 回推 `POST /api/open/oms/orders/status`
+- 采购：`POST /api/procure/inquiry`（含 lines）；`POST /api/procure/inquiry/{id}/send|quote|close|order`；`POST /api/procure/order`；`POST /api/procure/order/from-shortage`；`POST /api/procure/order/{id}/submit|confirm|reject|cancel|receive|close`；`POST /api/procure/statement/generate|{id}/confirm|{id}/pay`
 - 工作台：`GET /api/dashboard?dealerCode=`
 
 ## 前端

@@ -21,7 +21,13 @@ public class RolePolicy {
                     "/api/warranty/claim/*/reject",
                     "/api/warranty/claim/*/return",
                     "/api/warranty/claim/*/receive",
-                    "/api/warranty/settlement/**");
+                    "/api/warranty/settlement",
+                    "/api/warranty/settlement/**",
+                    "/api/procure/inquiry/*/quote",
+                    "/api/procure/order/*/confirm",
+                    "/api/procure/order/*/reject",
+                    "/api/procure/statement",
+                    "/api/procure/statement/**");
 
     /** 经销商经理禁止写：经销商主数据、目标、考核、指导库主数据、调研模板、用户管理。 */
     private static final List<String> MGR_DENY_WRITE =
@@ -40,7 +46,13 @@ public class RolePolicy {
                     "/api/warranty/claim/*/reject",
                     "/api/warranty/claim/*/return",
                     "/api/warranty/claim/*/receive",
-                    "/api/warranty/settlement/**");
+                    "/api/warranty/settlement",
+                    "/api/warranty/settlement/**",
+                    "/api/procure/inquiry/*/quote",
+                    "/api/procure/order/*/confirm",
+                    "/api/procure/order/*/reject",
+                    "/api/procure/statement",
+                    "/api/procure/statement/**");
 
     /** 服务顾问可写：工单全流程、客户车辆、调研记录/答卷/投诉、备件预留释放、OMS 补货。 */
     private static final List<String> ADVISOR_WRITE =
@@ -58,7 +70,20 @@ public class RolePolicy {
                     "/api/warranty/claim",
                     "/api/warranty/claim/*",
                     "/api/warranty/claim/*/submit",
-                    "/api/warranty/claim/*/ship");
+                    "/api/warranty/claim/*/ship",
+                    "/api/procure/inquiry",
+                    "/api/procure/inquiry/*",
+                    "/api/procure/inquiry/*/lines",
+                    "/api/procure/inquiry/*/send",
+                    "/api/procure/inquiry/*/close",
+                    "/api/procure/inquiry/*/order",
+                    "/api/procure/order",
+                    "/api/procure/order/*",
+                    "/api/procure/order/from-shortage",
+                    "/api/procure/order/*/submit",
+                    "/api/procure/order/*/receive",
+                    "/api/procure/order/*/cancel",
+                    "/api/procure/order/*/close");
 
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =
