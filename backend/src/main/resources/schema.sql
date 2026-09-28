@@ -727,6 +727,8 @@ CREATE TABLE IF NOT EXISTS dms_purchase_receipt_line (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+ALTER TABLE dms_purchase_receipt_line ADD COLUMN IF NOT EXISTS remark VARCHAR(255);
+
 
 CREATE TABLE IF NOT EXISTS dms_purchase_statement (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

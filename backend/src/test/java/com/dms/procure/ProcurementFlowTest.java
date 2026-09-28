@@ -358,4 +358,71 @@ class ProcurementFlowTest {
             assertNotNull(st);
         }
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void multiLineReceiveCompletesOrder() {
+        String sa = login("d001sa");
+        String oem = login("oem");
+
+        // 两行订单：分两次收货，第二次收货后订单应收口为 RECEIVED
+        Map<String, Object> body = new HashMap<>();
+        body.put("dealerCode", "D001");
+        body.put("lines", Arrays.asList(
+                new HashMap<String, Object>() {{ put("partNo", "P0004"); put("qty", 1); put("unitPrice", 5); }},
+                new HashMap<String, Object>() {{ put("partNo", "P0005"); put("qty", 1); put("unitPrice", 5); }}));
+        Map<String, Object> po = call(sa, "POST", "/api/procure/order", body);
+        Long poid = ((Number) po.get("id")).longValue();
+        call(sa, "POST", "/api/procure/order/" + poid + "/submit", null);
+        call(oem, "POST", "/api/procure/order/" + poid + "/confirm", new HashMap<>());
+
+        java.util.List<Object> lines =
+                (java.util.List<Object>) raw(sa, "GET", "/api/procure/order/" + poid + "/lines", null)
+                        .getBody().get("data");
+        for (Object row : lines) {
+            Long lid = ((Number) ((Map<String, Object>) row).get("id")).longValue();
+            Map<String, Object> rcv = new HashMap<>();
+            rcv.put("location", "RCV-01");
+            rcv.put("lines", Collections.singletonList(
+                    new HashMap<String, Object>() {{ put("orderLineId", lid); put("qty", 1); }}));
+            call(sa, "POST", "/api/procure/order/" + poid + "/receive", rcv);
+        }
+        Map<String, Object> after =
+                (Map<String, Object>) raw(sa, "GET", "/api/procure/order/" + poid, null)
+                        .getBody().get("data");
+        assertEquals("RECEIVED", after.get("status"));
+    }
+
+    @Test
+    void receiveRejectsOverflowQty() {
+        String sa = login("d001sa");
+        String oem = login("oem");
+        Map<String, Object> body = new HashMap<>();
+        body.put("dealerCode", "D001");
+        body.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{ put("partNo", "P0004"); put("qty", 2); put("unitPrice", 5); }}));
+        Map<String, Object> po = call(sa, "POST", "/api/procure/order", body);
+        Long poid = ((Number) po.get("id")).longValue();
+        call(sa, "POST", "/api/procure/order/" + poid + "/submit", null);
+        call(oem, "POST", "/api/procure/order/" + poid + "/confirm", new HashMap<>());
+        java.util.List<Object> lines =
+                (java.util.List<Object>) raw(sa, "GET", "/api/procure/order/" + poid + "/lines", null)
+                        .getBody().get("data");
+        Long lid = ((Number) ((Map<String, Object>) lines.get(0)).get("id")).longValue();
+        // 超出 long 上限的整数也不能截断通过
+        Map<String, Object> huge = new HashMap<>();
+        huge.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{
+                    put("orderLineId", lid);
+                    put("qty", new java.math.BigInteger("99999999999999999999"));
+                }}));
+        ResponseEntity<Map> r = raw(sa, "POST", "/api/procure/order/" + poid + "/receive", huge);
+        assertNotEquals(0, ((Number) r.getBody().get("code")).intValue());
+        // 小数也应拒绝
+        Map<String, Object> frac = new HashMap<>();
+        frac.put("lines", Collections.singletonList(
+                new HashMap<String, Object>() {{ put("orderLineId", lid); put("qty", 1.5); }}));
+        ResponseEntity<Map> r2 = raw(sa, "POST", "/api/procure/order/" + poid + "/receive", frac);
+        assertNotEquals(0, ((Number) r2.getBody().get("code")).intValue());
+    }
 }

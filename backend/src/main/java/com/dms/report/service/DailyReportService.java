@@ -63,6 +63,13 @@ public class DailyReportService {
         log.info("经营日报生成 {} 条", n);
     }
 
+    /** 次日 00:10 重算昨日日报，补齐 23:30 之后产生的业务。 */
+    @Scheduled(cron = "${dms.report.daily-recalc-cron:0 10 0 * * ?}")
+    public void recalcYesterday() {
+        int n = generate(LocalDate.now().minusDays(1), null).size();
+        log.info("经营日报重算 {} 条", n);
+    }
+
     /** 生成某日日报；dealerCode 空 = 全部经销商（受 DataScope 限制）。返回生成/更新的行。 */
     @Transactional
     public List<DailyReport> generate(LocalDate date, String dealerCode) {

@@ -66,7 +66,8 @@ dms:
   crm:
     cron: ${DMS_CRM_CRON:0 0 8 * * ?}        # 跟进任务每日自动生成
   report:
-    daily-cron: ${DMS_REPORT_DAILY_CRON:0 30 23 * * ?}   # 经营日报每日生成
+    daily-cron: ${DMS_REPORT_DAILY_CRON:0 30 23 * * ?}   # 经营日报每日生成（当晚 23:30）
+    daily-recalc-cron: ${DMS_REPORT_DAILY_RECALC_CRON:0 10 0 * * ?}  # 次日凌晨重算昨日日报，补齐夜间业务
     pdf-font: ${DMS_REPORT_PDF_FONT:}        # PDF 中文字体文件路径；空则自动探测系统字体
   notify:
     provider: ${DMS_NOTIFY_PROVIDER:MOCK}   # MOCK | HTTP

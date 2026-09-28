@@ -360,11 +360,19 @@ public class PurchaseOrderService {
             if (!(qObj instanceof Number)) {
                 throw new BizException("到货数量非法");
             }
-            long q = ((Number) qObj).longValue();
-            if (q <= 0 || q > Integer.MAX_VALUE) {
+            // 用 BigDecimal 避免 BigInteger/小数被 longValue() 截断
+            BigDecimal qd;
+            try {
+                qd = new BigDecimal(qObj.toString());
+            } catch (NumberFormatException ex) {
                 throw new BizException("到货数量非法");
             }
-            int qty = (int) q;
+            if (qd.stripTrailingZeros().scale() > 0
+                    || qd.signum() <= 0
+                    || qd.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0) {
+                throw new BizException("到货数量非法");
+            }
+            int qty = qd.intValueExact();
             int already = line.getReceivedQty() == null ? 0 : line.getReceivedQty();
             int pending = toReceive.getOrDefault(line, 0);
             if (already + pending + qty > line.getQty()) {
@@ -406,15 +414,9 @@ public class PurchaseOrderService {
             receivedAdd = receivedAdd.add(rl.getAmount());
         }
 
-        boolean allDone = true;
-        for (PurchaseOrderLine l : lines(id)) {
-            if ((l.getReceivedQty() == null ? 0 : l.getReceivedQty()) < l.getQty()) {
-                allDone = false;
-                break;
-            }
-        }
-        mapper.addReceivedAmount(
-                o.getId(), receivedAdd, allDone ? "RECEIVED" : "PARTIAL_RECEIVED");
+        // 并发安全：先原子累计金额并置 PARTIAL_RECEIVED，再用条件 UPDATE 判定是否全部到货
+        mapper.addReceivedAmount(o.getId(), receivedAdd, "PARTIAL_RECEIVED");
+        mapper.completeIfAllReceived(o.getId());
         return mustGet(id);
     }
 

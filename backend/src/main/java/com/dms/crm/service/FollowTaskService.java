@@ -76,6 +76,10 @@ public class FollowTaskService {
                 throw new BizException("客户不存在");
             }
             DataScope.check(c.getDealerCode());
+            // 网络范围角色也必须保持任务与关联数据同店，防止跨店数据泄露给门店用户
+            if (!t.getDealerCode().equals(c.getDealerCode())) {
+                throw new BizException("客户不属于该经销商");
+            }
             if (t.getCustomerName() == null) {
                 t.setCustomerName(c.getName());
             }
@@ -89,6 +93,9 @@ public class FollowTaskService {
                 throw new BizException("车辆不存在");
             }
             DataScope.check(v.getDealerCode());
+            if (!t.getDealerCode().equals(v.getDealerCode())) {
+                throw new BizException("车辆不属于该经销商");
+            }
             if (t.getVin() == null) {
                 t.setVin(v.getVin());
             }

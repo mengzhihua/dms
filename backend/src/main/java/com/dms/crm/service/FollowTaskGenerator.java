@@ -207,6 +207,19 @@ public class FollowTaskGenerator {
 
     /** 按唯一键 (dealer_code,type,source_ref) 判重后插入；返回 1/0。 */
     private int insertIfAbsent(FollowTask t) {
+        // 保养提醒：同一车辆已存在 PENDING 任务即跳过，不管 source_ref 是日期还是里程触发
+        if ("MAINTENANCE_REMIND".equals(t.getType()) && t.getVin() != null) {
+            Long pending =
+                    taskMapper.selectCount(
+                            new QueryWrapper<FollowTask>()
+                                    .eq("dealer_code", t.getDealerCode())
+                                    .eq("type", "MAINTENANCE_REMIND")
+                                    .eq("vin", t.getVin())
+                                    .eq("status", "PENDING"));
+            if (pending != null && pending > 0) {
+                return 0;
+            }
+        }
         Long cnt =
                 taskMapper.selectCount(
                         new QueryWrapper<FollowTask>()
