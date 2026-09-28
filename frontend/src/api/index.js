@@ -120,6 +120,31 @@ export const warranty = {
   settlementClaims: (id) => http.get(`/warranty/settlement/${id}/claims`)
 }
 
+export const procure = {
+  inquiry: crud('/procure/inquiry'),
+  inquiryLines: (id) => http.get(`/procure/inquiry/${id}/lines`),
+  inquirySaveLines: (id, lines) => http.put(`/procure/inquiry/${id}/lines`, { lines }),
+  inquirySend: (id) => http.post(`/procure/inquiry/${id}/send`),
+  inquiryQuote: (id, data) => http.post(`/procure/inquiry/${id}/quote`, data),
+  inquiryClose: (id) => http.post(`/procure/inquiry/${id}/close`),
+  inquiryToOrder: (id) => http.post(`/procure/inquiry/${id}/order`),
+  order: crud('/procure/order'),
+  orderLines: (id) => http.get(`/procure/order/${id}/lines`),
+  orderReceipts: (id) => http.get(`/procure/order/${id}/receipts`),
+  orderFromShortage: (dealerCode) => http.post('/procure/order/from-shortage', { dealerCode }),
+  orderSubmit: (id) => http.post(`/procure/order/${id}/submit`),
+  orderConfirm: (id, data) => http.post(`/procure/order/${id}/confirm`, data),
+  orderReject: (id, data) => http.post(`/procure/order/${id}/reject`, data),
+  orderCancel: (id, data) => http.post(`/procure/order/${id}/cancel`, data),
+  orderReceive: (id, data) => http.post(`/procure/order/${id}/receive`, data),
+  orderClose: (id) => http.post(`/procure/order/${id}/close`),
+  statement: crud('/procure/statement'),
+  statementGenerate: (data) => http.post('/procure/statement/generate', data),
+  statementConfirm: (id) => http.post(`/procure/statement/${id}/confirm`),
+  statementPay: (id) => http.post(`/procure/statement/${id}/pay`),
+  statementOrders: (id) => http.get(`/procure/statement/${id}/orders`)
+}
+
 export const auth = {
   login: (data) => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),

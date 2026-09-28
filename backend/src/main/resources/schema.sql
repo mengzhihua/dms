@@ -638,3 +638,105 @@ CREATE TABLE IF NOT EXISTS sys_user (
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+-- ============ procure 备件采购（询价/采购订单/到货/对账） ============
+CREATE TABLE IF NOT EXISTS dms_purchase_inquiry (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    inquiry_no VARCHAR(40) UNIQUE,
+    dealer_code VARCHAR(32),
+    title VARCHAR(255),
+    status VARCHAR(16),                      -- DRAFT/SENT/QUOTED/ORDERED/CLOSED
+    expect_date DATE,
+    quoted_at TIMESTAMP,
+    oem_remark VARCHAR(255),
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_inquiry_line (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    inquiry_id BIGINT NOT NULL,
+    part_no VARCHAR(32),
+    name VARCHAR(128),
+    qty INT,
+    target_price DECIMAL(18,2),
+    quoted_price DECIMAL(18,2),
+    lead_days INT,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_order (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    po_no VARCHAR(40) UNIQUE,
+    dealer_code VARCHAR(32),
+    inquiry_id BIGINT,
+    source VARCHAR(16),                      -- MANUAL/INQUIRY/SHORTAGE
+    status VARCHAR(16),                      -- DRAFT/SUBMITTED/CONFIRMED/PARTIAL_RECEIVED/RECEIVED/CLOSED/CANCELLED
+    total_amount DECIMAL(18,2),
+    received_amount DECIMAL(18,2) DEFAULT 0,
+    expect_date DATE,
+    oem_order_no VARCHAR(64),
+    oem_remark VARCHAR(255),
+    statement_id BIGINT,
+    submitted_at TIMESTAMP,
+    confirmed_at TIMESTAMP,
+    closed_at TIMESTAMP,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_order_line (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    part_no VARCHAR(32),
+    name VARCHAR(128),
+    qty INT,
+    received_qty INT DEFAULT 0,
+    unit_price DECIMAL(18,2),
+    amount DECIMAL(18,2),
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_receipt (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    receipt_no VARCHAR(40) UNIQUE,
+    order_id BIGINT,
+    dealer_code VARCHAR(32),
+    location VARCHAR(32),
+    batch_no VARCHAR(32),
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_receipt_line (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    receipt_id BIGINT NOT NULL,
+    order_line_id BIGINT,
+    part_no VARCHAR(32),
+    qty INT,
+    unit_price DECIMAL(18,2),
+    amount DECIMAL(18,2),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dms_purchase_statement (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    statement_no VARCHAR(40) UNIQUE,
+    dealer_code VARCHAR(32),
+    period VARCHAR(7),
+    order_count INT,
+    total_amount DECIMAL(18,2),
+    status VARCHAR(16),                      -- DRAFT/CONFIRMED/PAID
+    paid_at TIMESTAMP,
+    remark VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);

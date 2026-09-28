@@ -84,6 +84,21 @@ export const menus = [
     ]
   },
   {
+    path: '/procure',
+    name: '备件采购',
+    icon: 'ShoppingCart',
+    children: [
+      { path: 'inquiry', name: '询价单', component: () => import('../views/procure/Inquiry.vue') },
+      { path: 'order', name: '采购订单', component: () => import('../views/procure/PurchaseOrder.vue') },
+      {
+        path: 'statement',
+        name: '采购对账',
+        roles: ['ADMIN', 'OEM', 'DEALER_MANAGER', 'FINANCE'],
+        component: () => import('../views/procure/Statement.vue')
+      }
+    ]
+  },
+  {
     path: '/survey',
     name: '满意度',
     icon: 'ChatDotSquare',

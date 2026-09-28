@@ -223,3 +223,18 @@ SELECT c.id,'LABOR','L-AC-01','压缩机拆装工时',2.0,200.00,400.00,400.00,'
 FROM dms_warranty_claim c
 WHERE c.claim_no='WC-SEED-0002'
   AND NOT EXISTS (SELECT 1 FROM dms_warranty_claim_line l WHERE l.claim_id=c.id AND l.line_type='LABOR');
+
+-- 采购演示：一单厂家已确认，可直接演示到货入库
+INSERT INTO dms_purchase_order(po_no,dealer_code,inquiry_id,source,status,total_amount,received_amount,expect_date,oem_order_no,submitted_at,confirmed_at,remark,created_at,updated_at)
+SELECT 'PO-SEED-0001','D001',NULL,'MANUAL','CONFIRMED',2500.00,0.00,DATEADD('DAY',14,CURRENT_DATE),'OEM-PO-90001',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'演示采购单-已确认',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM dms_purchase_order WHERE po_no='PO-SEED-0001');
+INSERT INTO dms_purchase_order_line(order_id,part_no,name,qty,received_qty,unit_price,amount,remark,created_at,updated_at)
+SELECT o.id,'P0001','点火线圈',4,0,500.00,2000.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_purchase_order o
+WHERE o.po_no='PO-SEED-0001'
+  AND NOT EXISTS (SELECT 1 FROM dms_purchase_order_line l WHERE l.order_id=o.id AND l.part_no='P0001');
+INSERT INTO dms_purchase_order_line(order_id,part_no,name,qty,received_qty,unit_price,amount,remark,created_at,updated_at)
+SELECT o.id,'P0002','机油滤清器',2,0,250.00,500.00,'演示',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM dms_purchase_order o
+WHERE o.po_no='PO-SEED-0001'
+  AND NOT EXISTS (SELECT 1 FROM dms_purchase_order_line l WHERE l.order_id=o.id AND l.part_no='P0002');
