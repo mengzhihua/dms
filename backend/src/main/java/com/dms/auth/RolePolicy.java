@@ -27,7 +27,9 @@ public class RolePolicy {
                     "/api/procure/order/*/confirm",
                     "/api/procure/order/*/reject",
                     "/api/procure/statement",
-                    "/api/procure/statement/**");
+                    "/api/procure/statement/**",
+                    "/api/crm/template",
+                    "/api/crm/template/**");
 
     /** 经销商经理禁止写：经销商主数据、目标、考核、指导库主数据、调研模板、用户管理。 */
     private static final List<String> MGR_DENY_WRITE =
@@ -52,7 +54,9 @@ public class RolePolicy {
                     "/api/procure/order/*/confirm",
                     "/api/procure/order/*/reject",
                     "/api/procure/statement",
-                    "/api/procure/statement/**");
+                    "/api/procure/statement/**",
+                    "/api/crm/template",
+                    "/api/crm/template/**");
 
     /** 服务顾问可写：工单全流程、客户车辆、调研记录/答卷/投诉、备件预留释放、OMS 补货。 */
     private static final List<String> ADVISOR_WRITE =
@@ -83,7 +87,15 @@ public class RolePolicy {
                     "/api/procure/order/*/submit",
                     "/api/procure/order/*/receive",
                     "/api/procure/order/*/cancel",
-                    "/api/procure/order/*/close");
+                    "/api/procure/order/*/close",
+                    "/api/crm/task",
+                    "/api/crm/task/*",
+                    "/api/crm/task/*/complete",
+                    "/api/crm/task/*/cancel",
+                    "/api/crm/task/*/assign",
+                    "/api/crm/task/*/notify",
+                    "/api/crm/task/generate",
+                    "/api/crm/message/*/retry");
 
     /** 技师只读范围。 */
     private static final List<String> TECH_READ =
@@ -95,7 +107,9 @@ public class RolePolicy {
                     "/api/network/dealer/**",
                     "/api/network/technician/**",
                     "/api/network/bay/**",
-                    "/api/dashboard/**");
+                    "/api/dashboard/**",
+                    "/api/crm/task/**",
+                    "/api/crm/message/**");
     /** 技师可写：工单开工/完工/质检。 */
     private static final List<String> TECH_WRITE =
             Arrays.asList(

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.dms.auth.DataScope;
 import com.dms.common.BizException;
 import com.dms.common.CodeGenerator;
+import com.dms.crm.service.FollowTaskGenerator;
 import com.dms.customer.entity.Vehicle;
 import com.dms.customer.entity.VehicleModel;
 import com.dms.customer.mapper.VehicleMapper;
@@ -36,9 +37,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WorkOrderService {
@@ -60,6 +64,7 @@ public class WorkOrderService {
     private final CodeGenerator codeGenerator;
     private final InvoiceService invoiceService;
     private final SurveyService surveyService;
+    @Autowired private FollowTaskGenerator followTaskGenerator;
 
     public WorkOrder mustGet(Long id) {
         WorkOrder o = orderMapper.selectById(id);
@@ -528,6 +533,11 @@ public class WorkOrderService {
         Long surveyId = surveyService.createForOrder(o);
         o.setSurveyId(surveyId);
         orderMapper.updateById(o);
+        try {
+            followTaskGenerator.createForOrder(o);
+        } catch (RuntimeException e) {
+            log.warn("生成售后回访任务失败: {}", e.getMessage());
+        }
         return o;
     }
 

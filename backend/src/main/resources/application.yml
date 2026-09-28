@@ -63,6 +63,22 @@ dms:
     callback-key: ${DMS_OMS_CALLBACK_KEY:}  # 非空时 OMS 回推 /api/open/oms/orders/status 需携带同值 X-Api-Key
   open:
     api-key: ${DMS_OPEN_API_KEY:dms-open-key}
+  crm:
+    cron: ${DMS_CRM_CRON:0 0 8 * * ?}        # 跟进任务每日自动生成
+  notify:
+    provider: ${DMS_NOTIFY_PROVIDER:MOCK}   # MOCK | HTTP
+    mock-fail-rate: 0                       # Mock 通道模拟失败概率 0~1
+    timeout-ms: 10000
+    sms:
+      endpoint: ${DMS_NOTIFY_SMS_ENDPOINT:}
+      app-id: ${DMS_NOTIFY_SMS_APP_ID:}
+      app-secret: ${DMS_NOTIFY_SMS_APP_SECRET:}
+      sign-name: DMS经销商
+    wechat:
+      endpoint: ${DMS_NOTIFY_WECHAT_ENDPOINT:}
+      app-id: ${DMS_NOTIFY_WECHAT_APP_ID:}
+      app-secret: ${DMS_NOTIFY_WECHAT_APP_SECRET:}
+      template-id: ${DMS_NOTIFY_WECHAT_TEMPLATE_ID:}
 ---
 spring:
   config:
