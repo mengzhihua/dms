@@ -214,6 +214,15 @@ if [ "$FTID" != "null" ]; then
   call POST "/crm/task/$FTID/complete" '{"result":"冒烟回访"}' >/dev/null
 fi
 
+echo "== 14d reports + daily"
+FROM30=$(date -d '30 days ago' +%F 2>/dev/null || date -v-30d +%F)
+RPT=$(call GET "/report/workshop?from=$FROM30&to=$(date +%F)&groupBy=month")
+echo "$RPT" | jq -e '.sections|length>0' >/dev/null
+SZ=$(curl -sf -o /tmp/rpt.xlsx -w '%{size_download}' -H "Authorization: Bearer $TOKEN" "$BASE/api/report/workshop/export?from=$FROM30&to=$(date +%F)&format=xlsx")
+test "$SZ" -gt 500
+DR=$(call POST /report/daily/generate "{"dealerCode":"$DC"}")
+test "$(echo "$DR"|jq length)" -ge 1
+
 echo "== 15 dashboard"
 call GET "/dashboard?dealerCode=$DC" | jq -c '{workOrderStatusCounts,todayCheckIns,monthRevenue,openComplaints,dealerRanking}'
 

@@ -158,6 +158,33 @@ export const crm = {
   template: crud('/crm/template')
 }
 
+export const report = {
+  get: (type, params) => http.get(`/report/${type}`, { params }),
+  daily: (params) => http.get('/report/daily', { params }),
+  dailyPage: (params) => http.get('/report/daily/page', { params }),
+  dailyGenerate: (data) => http.post('/report/daily/generate', data),
+  // 二进制导出：绕过 http 解包，直接 axios 拿 blob 触发下载
+  exportFile: async (type, params, format) => {
+    const axios = (await import('axios')).default
+    const { store } = await import('../store')
+    const url = type === 'daily' ? '/report/daily/export' : `/report/${type}/export`
+    const resp = await axios.get('/api' + url, {
+      params: { ...params, format },
+      responseType: 'blob',
+      headers: store.token ? { Authorization: `Bearer ${store.token}` } : {}
+    })
+    const dispo = resp.headers['content-disposition'] || ''
+    const m = dispo.match(/filename\*=UTF-8''([^;]+)/)
+    const name = m ? decodeURIComponent(m[1]) : `报表.${format}`
+    const blobUrl = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(blobUrl)
+  }
+}
+
 export const auth = {
   login: (data) => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),
