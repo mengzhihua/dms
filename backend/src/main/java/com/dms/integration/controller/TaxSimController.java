@@ -60,7 +60,12 @@ public class TaxSimController {
             res.put("success", true);
             res.put("pending", true);
             res.put("providerRef", ref);
-            pendingIssued.put(ref, successResult());
+            Map<String, Object> issued = successResult();
+            pendingIssued.put(ref, issued);
+            String requestId = text(body, "requestId");
+            if (requestId != null) {
+                pendingIssued.put(requestId, issued);
+            }
             return ResponseEntity.ok(res);
         }
         return ResponseEntity.ok(successResult());
@@ -73,11 +78,18 @@ public class TaxSimController {
             return badSign();
         }
         String ref = text(body, "providerRef");
-        Map<String, Object> res = pendingIssued.remove(ref);
+        String requestId = text(body, "requestId");
+        Map<String, Object> res = ref != null ? pendingIssued.remove(ref) : null;
+        if (res == null && requestId != null) {
+            res = pendingIssued.remove(requestId);
+        }
+        if (res != null) {
+            pendingIssued.values().remove(res);
+        }
         if (res == null) {
             Map<String, Object> m = new HashMap<>();
             m.put("success", false);
-            m.put("errorMsg", "providerRef 不存在或已完成");
+            m.put("errorMsg", "providerRef/requestId 不存在或已完成");
             return ResponseEntity.ok(m);
         }
         return ResponseEntity.ok(res);
