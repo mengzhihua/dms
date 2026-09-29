@@ -20,9 +20,9 @@ public class MockTaxAdapter implements TaxInvoiceGateway {
     }
 
     @Override
-    public IssueResult query(String providerRef) {
+    public IssueResult query(String providerRef, String requestId) {
         IssueResult r = simulate();
-        r.setProviderRef(providerRef);
+        r.setProviderRef(providerRef != null ? providerRef : "MOCK-" + requestId);
         return r;
     }
 

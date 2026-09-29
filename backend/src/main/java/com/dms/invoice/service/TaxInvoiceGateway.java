@@ -9,8 +9,8 @@ import lombok.Data;
 public interface TaxInvoiceGateway {
     IssueResult issue(Invoice invoice, List<InvoiceLine> lines);
 
-    /** 异步查询开票结果（ISSUED/FAILED）。 */
-    IssueResult query(String providerRef);
+    /** 异步查询开票结果（ISSUED/FAILED）；providerRef 可为空，requestId 为开票申请号（invoiceNo）。 */
+    IssueResult query(String providerRef, String requestId);
 
     /** 红冲：针对已开具发票开具负数发票。 */
     IssueResult redFlush(Invoice original, Invoice redInvoice, List<InvoiceLine> redLines);
