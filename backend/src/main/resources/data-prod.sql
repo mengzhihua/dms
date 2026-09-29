@@ -6,15 +6,15 @@ SELECT 'SV01' AS code,'售后服务满意度调研' AS name,'SERVICE' AS type
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_survey_template) t WHERE t.code = u.code);
 INSERT INTO dms_survey_question(template_id,seq,text,type,weight)
 SELECT u.* FROM (
-SELECT 1 AS template_id,1 AS seq,'您对本次维修/保养的总体满意度评分（1-10分）' AS text,'SCORE' AS type,0.3 AS weight
+SELECT (SELECT id FROM dms_survey_template WHERE code='SV01') AS template_id,1 AS seq,'您对本次维修/保养的总体满意度评分（1-10分）' AS text,'SCORE' AS type,0.3 AS weight
 UNION ALL
-SELECT 1,2,'服务顾问接待与沟通满意度（1-10分）','SCORE',0.2
+SELECT (SELECT id FROM dms_survey_template WHERE code='SV01'),2,'服务顾问接待与沟通满意度（1-10分）','SCORE',0.2
 UNION ALL
-SELECT 1,3,'维修质量与一次性修复满意度（1-10分）','SCORE',0.3
+SELECT (SELECT id FROM dms_survey_template WHERE code='SV01'),3,'维修质量与一次性修复满意度（1-10分）','SCORE',0.3
 UNION ALL
-SELECT 1,4,'交车及时性与车辆清洁满意度（1-10分）','SCORE',0.2
+SELECT (SELECT id FROM dms_survey_template WHERE code='SV01'),4,'交车及时性与车辆清洁满意度（1-10分）','SCORE',0.2
 UNION ALL
-SELECT 1,5,'您愿意向亲友推荐本店吗（0-10分）','NPS',1.0
+SELECT (SELECT id FROM dms_survey_template WHERE code='SV01'),5,'您愿意向亲友推荐本店吗（0-10分）','NPS',1.0
 ) u
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_survey_question) t WHERE t.template_id = u.template_id AND t.seq = u.seq);
 INSERT INTO dms_survey_template(code,name,type)
@@ -35,15 +35,8 @@ SELECT (SELECT id FROM dms_survey_template WHERE code='SV02'),4,'您愿意向亲
 WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_survey_question) t WHERE t.template_id = u.template_id AND t.seq = u.seq);
 
 -- ============ 税率配置 ============
-INSERT INTO dms_tax_config(dealer_code,tax_rate,seller_name,seller_tax_no)
-SELECT u.* FROM (
-SELECT 'D001' AS dealer_code,0.13 AS tax_rate,'上海申联汽车4S店' AS seller_name,'91310000MA1K00001A' AS seller_tax_no
-UNION ALL
-SELECT 'D002',0.13,'杭州宏达汽车4S店','91330100MA2K00002B'
-UNION ALL
-SELECT 'S001',0.13,'品牌直营上海旗舰店','91310000MA1K00003C'
-) u
-WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM dms_tax_config) t WHERE t.dealer_code = u.dealer_code);
+-- 生产环境不播种演示卖方信息：由各经销商在「发票-税务配置」自行维护，
+-- 未配置时开票会报「未配置税务信息」。
 
 -- 通知模板
 INSERT INTO dms_notify_template(code,name,channel,content,enabled)

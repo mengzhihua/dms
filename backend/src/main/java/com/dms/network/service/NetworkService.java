@@ -287,6 +287,11 @@ public class NetworkService {
         boolean approved = Boolean.TRUE.equals(body.get("approved"));
         if (approved) {
             o.setLoanStatus("APPROVED");
+            // 贷款到账记为收款流水并计入 paidAmount（交车时不再重复加贷款额）
+            insertPayment(o, "LOAN", o.getLoanAmount(), "LOAN", "贷款到账");
+            o.setPaidAmount(
+                    (o.getPaidAmount() == null ? BigDecimal.ZERO : o.getPaidAmount())
+                            .add(o.getLoanAmount()));
         } else {
             o.setLoanStatus("REJECTED");
             o.setPaymentType("FULL");
@@ -326,6 +331,12 @@ public class NetworkService {
             throw new BizException("收款金额必须大于0");
         }
         String payType = str(body.get("payType"));
+        if ("LOAN".equals(payType)) {
+            throw new BizException("贷款由金融审批自动入账");
+        }
+        if ("INSURANCE".equals(payType)) {
+            throw new BizException("保费不计入车款");
+        }
         insertPayment(o, payType == null ? "BALANCE" : payType,
                 amount, str(body.get("method")), str(body.get("remark")));
         o.setPaidAmount((o.getPaidAmount() == null ? BigDecimal.ZERO : o.getPaidAmount())
@@ -428,6 +439,13 @@ public class NetworkService {
         if (!"INVOICED".equals(o.getStatus())) {
             throw new BizException("只有已开票订单可以交付");
         }
+        if (o.getInvoiceId() == null) {
+            throw new BizException("发票未开具，不能交车");
+        }
+        Invoice inv0 = invoiceMapper.selectById(o.getInvoiceId());
+        if (inv0 == null || !"ISSUED".equals(inv0.getStatus())) {
+            throw new BizException("发票未开具，不能交车");
+        }
         if (body != null && !Boolean.TRUE.equals(body.get("pdiPassed"))) {
             throw new BizException("PDI 检查未通过，不能交车");
         }
@@ -435,9 +453,6 @@ public class NetworkService {
             throw new BizException("PDI 检查未通过，不能交车");
         }
         BigDecimal paid = o.getPaidAmount() == null ? BigDecimal.ZERO : o.getPaidAmount();
-        if ("APPROVED".equals(o.getLoanStatus()) && o.getLoanAmount() != null) {
-            paid = paid.add(o.getLoanAmount());
-        }
         if ("LOAN".equals(o.getPaymentType()) && !"APPROVED".equals(o.getLoanStatus())) {
             throw new BizException("贷款未审批通过，不能交车");
         }

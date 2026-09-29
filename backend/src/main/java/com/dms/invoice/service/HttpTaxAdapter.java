@@ -38,7 +38,15 @@ public class HttpTaxAdapter implements TaxInvoiceGateway {
             String appSecret,
             String signMode,
             int timeoutMs,
-            String callbackUrl) {
+            String callbackUrl,
+            boolean allowInsecure) {
+        if (!allowInsecure
+                && endpoint != null
+                && !endpoint.isEmpty()
+                && !endpoint.startsWith("https://")) {
+            throw new IllegalStateException(
+                    "dms.tax.endpoint 必须使用 https://，如确需 http 请显式设置 dms.tax.allow-insecure=true");
+        }
         this.endpoint = endpoint;
         this.appId = appId;
         this.appSecret = appSecret;
@@ -77,20 +85,24 @@ public class HttpTaxAdapter implements TaxInvoiceGateway {
             String body = om.writeValueAsString(payload);
             return parse(postRaw(url, body));
         } catch (HttpStatusCodeException e) {
+            // 5xx 可重试；4xx 为平台拒绝
             return fail(
                     "HTTP "
                             + e.getStatusCode().value()
                             + ": "
-                            + truncate(e.getResponseBodyAsString()));
+                            + truncate(e.getResponseBodyAsString()),
+                    e.getStatusCode().is5xxServerError());
         } catch (Exception e) {
-            return fail(e.getMessage());
+            // 超时/网络/解析失败均可重试
+            return fail(e.getMessage(), true);
         }
     }
 
-    private IssueResult fail(String msg) {
+    private IssueResult fail(String msg, boolean retryable) {
         IssueResult r = new IssueResult();
         r.setSuccess(false);
         r.setErrorMsg(msg == null ? "未知错误" : truncate(msg));
+        r.setRetryable(retryable);
         return r;
     }
 

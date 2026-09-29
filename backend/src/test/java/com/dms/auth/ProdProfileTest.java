@@ -21,7 +21,8 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(
         properties = {
             "spring.datasource.url=jdbc:h2:mem:prodtest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
-            "dms.auth.bootstrap-admin-password=Prod#Admin123"
+            "dms.auth.bootstrap-admin-password=Prod#Admin123",
+            "dms.auth.jwt-secret=prod-test-secret-key-0123456789abcdef"
         })
 class ProdProfileTest {
     @Autowired TestRestTemplate http;
@@ -45,12 +46,14 @@ class ProdProfileTest {
         assertEquals(0, ((Number) ok.getBody().get("code")).intValue());
         assertNotNull(((Map<String, Object>) ok.getBody().get("data")).get("token"));
 
-        // 无演示主数据，但保留税率配置与调研模板
+        // 无演示主数据，也不再播种演示税率配置；保留调研模板
         assertEquals(
                 0,
                 jdbc.queryForObject("SELECT COUNT(*) FROM dms_dealer", Long.class).longValue());
-        assertTrue(
-                jdbc.queryForObject("SELECT COUNT(*) FROM dms_tax_config", Long.class) > 0);
+        assertEquals(
+                0,
+                jdbc.queryForObject("SELECT COUNT(*) FROM dms_tax_config", Long.class)
+                        .longValue());
         assertTrue(
                 jdbc.queryForObject("SELECT COUNT(*) FROM dms_survey_template", Long.class) > 0);
         assertEquals(

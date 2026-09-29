@@ -1,6 +1,8 @@
 package com.dms.network.controller;
 
+import com.dms.auth.DataScope;
 import com.dms.common.BaseCrudController;
+import com.dms.common.BizException;
 import com.dms.common.R;
 import com.dms.network.entity.SalesPayment;
 import com.dms.network.entity.VehicleSalesOrder;
@@ -29,6 +31,29 @@ public class VehicleSalesOrderController
     @Override
     public R<VehicleSalesOrder> create(@Valid @RequestBody VehicleSalesOrder entity) {
         return R.ok(service.createSalesOrder(entity));
+    }
+
+    /** 仅新建状态可修改描述性字段；状态/金额/审批字段不允许直改。 */
+    @Override
+    public R<VehicleSalesOrder> update(
+            @PathVariable Long id, @Valid @RequestBody VehicleSalesOrder entity) {
+        VehicleSalesOrder cur = mapper.selectById(id);
+        if (cur == null) {
+            throw new BizException("销售订单不存在");
+        }
+        DataScope.check(cur.getDealerCode());
+        if (!"NEW".equals(cur.getStatus())) {
+            throw new BizException("订单当前状态不允许修改");
+        }
+        cur.setCustomerId(entity.getCustomerId());
+        cur.setModelCode(entity.getModelCode());
+        cur.setVin(entity.getVin());
+        cur.setColor(entity.getColor());
+        cur.setPrice(entity.getPrice());
+        cur.setDeposit(entity.getDeposit());
+        cur.setRemark(entity.getRemark());
+        mapper.updateById(cur);
+        return R.ok(cur);
     }
 
     @PostMapping("/{id}/allocate")

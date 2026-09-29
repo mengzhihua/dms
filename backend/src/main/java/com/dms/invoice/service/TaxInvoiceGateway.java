@@ -26,5 +26,7 @@ public interface TaxInvoiceGateway {
         private String errorMsg;
         /** true = 平台已受理，异步出票，需后续 query/回调确认。 */
         private boolean pending;
+        /** true = 失败可重试（超时/网络/5xx），sync 不应置 FAILED。 */
+        private boolean retryable;
     }
 }

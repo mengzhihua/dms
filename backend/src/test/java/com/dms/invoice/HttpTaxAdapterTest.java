@@ -50,7 +50,7 @@ class HttpTaxAdapterTest {
                 });
         server.start();
         String endpoint = "http://127.0.0.1:" + server.getAddress().getPort() + "/tax";
-        return new HttpTaxAdapter(endpoint, APP_ID, SECRET, "HMAC", 5000, "http://cb/x");
+        return new HttpTaxAdapter(endpoint, APP_ID, SECRET, "HMAC", 5000, "http://cb/x", true);
     }
 
     @AfterEach

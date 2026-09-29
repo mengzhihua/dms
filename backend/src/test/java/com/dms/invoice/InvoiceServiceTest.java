@@ -29,10 +29,17 @@ class InvoiceServiceTest {
     private InvoiceService newService(
             InvoiceMapper im, InvoiceLineMapper lm, WorkOrderLaborMapper wlm, WorkOrderPartMapper wpm) {
         TaxConfigMapper tcm = mock(TaxConfigMapper.class);
+        com.dms.invoice.entity.TaxConfig tc = new com.dms.invoice.entity.TaxConfig();
+        tc.setTaxRate(new BigDecimal("0.13"));
+        tc.setSellerName("测试经销商");
+        tc.setSellerTaxNo("91310000TEST01");
+        when(tcm.selectOne(any())).thenReturn(tc);
+        com.dms.network.mapper.VehicleSalesOrderMapper som =
+                mock(com.dms.network.mapper.VehicleSalesOrderMapper.class);
         WorkOrderMapper wom = mock(WorkOrderMapper.class);
         CodeGenerator cg = mock(CodeGenerator.class);
         when(cg.next(anyString())).thenReturn("INV-TEST-1");
-        return new InvoiceService(im, lm, tcm, wom, wlm, wpm, cg, new MockTaxAdapter(0));
+        return new InvoiceService(im, lm, tcm, som, wom, wlm, wpm, cg, new MockTaxAdapter(0));
     }
 
     @Test

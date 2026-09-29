@@ -30,7 +30,8 @@ import org.springframework.test.context.TestPropertySource;
             "dms.tax.endpoint=http://127.0.0.1:18099/sim/tax",
             "dms.tax.app-id=dms-app",
             "dms.tax.app-secret=test-tax-app-secret-0123456789abcdef",
-            "dms.tax.callback-url=http://127.0.0.1:18099/api/invoice/callback/SIM"
+            "dms.tax.callback-url=http://127.0.0.1:18099/api/invoice/callback/SIM",
+            "dms.tax.allow-insecure=true"
         })
 class TaxSimFlowTest {
     @Autowired TestRestTemplate http;

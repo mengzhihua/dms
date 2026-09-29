@@ -70,7 +70,14 @@ public class RolePolicy {
                     "/api/parts/stock/release**",
                     "/api/parts/stock/inbound",
                     "/api/oms/replenish/**",
-                    "/api/network/sales-order/**",
+                    "/api/network/sales-order",
+                    "/api/network/sales-order/*",
+                    "/api/network/sales-order/*/allocate",
+                    "/api/network/sales-order/*/finance",
+                    "/api/network/sales-order/*/payment",
+                    "/api/network/sales-order/*/invoice",
+                    "/api/network/sales-order/*/deliver",
+                    "/api/network/sales-order/*/cancel",
                     "/api/warranty/claim",
                     "/api/warranty/claim/*",
                     "/api/warranty/claim/*/submit",
@@ -128,6 +135,7 @@ public class RolePolicy {
                     "/api/network/sales-order/*/invoice",
                     "/api/network/sales-order/*/deliver",
                     "/api/network/sales-order/*/payment",
+                    "/api/network/sales-order/*/insurance",
                     "/api/network/sales-order/*/finance/decision");
 
     private RolePolicy() {}

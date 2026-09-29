@@ -59,10 +59,8 @@ const captcha = reactive({ id: '', image: '' })
 async function checkCaptcha() {
   try {
     const res = await http.get('/auth/captcha/required', { params: { username: form.username } })
-    if (res.required) {
-      captchaRequired.value = true
-      if (!captcha.id) refreshCaptcha()
-    }
+    captchaRequired.value = !!res.required
+    if (res.required && !captcha.id) refreshCaptcha()
   } catch (e) { /* 预检失败不阻塞登录 */ }
 }
 

@@ -76,7 +76,8 @@ public class AuthService {
         long now = System.currentTimeMillis();
         if (username != null && !username.trim().isEmpty()) {
             FailInfo fi = failures.get(username);
-            if (fi != null && fi.count >= 3) {
+            // 窗口期外的历史失败视为已过期，不再要求验证码
+            if (fi != null && fi.count >= 3 && now - fi.lastFailure <= lockMillis) {
                 return true;
             }
         }
@@ -178,18 +179,28 @@ public class AuthService {
     }
 
     private void recordFailure(String username, String ip) {
+        long now = System.currentTimeMillis();
         FailInfo fi = failures.computeIfAbsent(username, k -> new FailInfo());
         synchronized (fi) {
+            // 窗口期外的旧记录清零后重新计数
+            if (now - fi.lastFailure > lockMillis) {
+                fi.count = 0;
+            }
             fi.count++;
-            fi.lastFailure = System.currentTimeMillis();
+            fi.lastFailure = now;
             if (fi.count >= MAX_FAILURES) {
                 fi.lockUntil = fi.lastFailure + lockMillis;
             }
         }
         if (ip != null) {
             IpFailInfo ipfi = ipFailures.computeIfAbsent(ip, k -> new IpFailInfo());
-            ipfi.count.incrementAndGet();
-            ipfi.lastFailure = fi.lastFailure;
+            synchronized (ipfi) {
+                if (now - ipfi.lastFailure > lockMillis) {
+                    ipfi.count.set(0);
+                }
+                ipfi.count.incrementAndGet();
+                ipfi.lastFailure = now;
+            }
         }
         evictIfNeeded();
         evictIpIfNeeded();
@@ -215,7 +226,16 @@ public class AuthService {
                 }
             }
             if (oldest == null) {
-                break;
+                // 全部处于锁定期也要保证容量上限：淘汰最早失败的一条
+                for (Map.Entry<String, FailInfo> e : failures.entrySet()) {
+                    if (e.getValue().lastFailure < oldestTs) {
+                        oldestTs = e.getValue().lastFailure;
+                        oldest = e.getKey();
+                    }
+                }
+                if (oldest == null) {
+                    break;
+                }
             }
             failures.remove(oldest);
         }

@@ -9,6 +9,8 @@ import java.security.SecureRandom;
 import java.util.Date;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -19,9 +21,14 @@ public class JwtService {
 
     public JwtService(
             @Value("${dms.auth.jwt-secret:}") String secret,
-            @Value("${dms.auth.expire-hours:12}") long expireHours) {
+            @Value("${dms.auth.expire-hours:12}") long expireHours,
+            Environment env) {
         byte[] bytes;
         if (secret == null || secret.trim().isEmpty()) {
+            if (env != null && env.acceptsProfiles(Profiles.of("prod"))) {
+                throw new IllegalStateException(
+                        "prod 环境必须配置 dms.auth.jwt-secret（如环境变量 DMS_JWT_SECRET），至少 32 字节");
+            }
             bytes = new byte[64];
             new SecureRandom().nextBytes(bytes);
             log.warn("未配置 dms.auth.jwt-secret，已生成随机密钥，重启后旧 token 失效");

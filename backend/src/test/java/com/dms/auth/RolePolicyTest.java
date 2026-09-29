@@ -47,8 +47,10 @@ class RolePolicyTest {
         assertTrue(RolePolicy.allowed("ADVISOR", "POST", "/api/survey/complaint/1/handle"));
         assertTrue(RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order"));
         assertTrue(RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order/1/finance"));
-        assertTrue(RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order/1/insurance"));
         assertTrue(RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order/1/deliver"));
+        assertFalse(RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order/1/insurance"));
+        assertFalse(
+                RolePolicy.allowed("ADVISOR", "POST", "/api/network/sales-order/1/finance/decision"));
         assertFalse(RolePolicy.allowed("ADVISOR", "POST", "/api/invoice/1/issue"));
         assertFalse(RolePolicy.allowed("ADVISOR", "POST", "/api/network/dealer"));
         assertFalse(RolePolicy.allowed("ADVISOR", "POST", "/api/parts/part"));
@@ -79,6 +81,7 @@ class RolePolicyTest {
         assertTrue(RolePolicy.allowed("FINANCE", "POST", "/api/network/sales-order/1/payment"));
         assertTrue(RolePolicy.allowed("FINANCE", "POST", "/api/network/sales-order/1/finance/decision"));
         assertTrue(RolePolicy.allowed("FINANCE", "POST", "/api/network/sales-order/1/deliver"));
+        assertTrue(RolePolicy.allowed("FINANCE", "POST", "/api/network/sales-order/1/insurance"));
         assertFalse(RolePolicy.allowed("FINANCE", "POST", "/api/customer/customer"));
         assertFalse(RolePolicy.allowed("FINANCE", "POST", "/api/workshop/order"));
     }

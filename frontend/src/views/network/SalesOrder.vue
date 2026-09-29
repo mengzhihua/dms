@@ -108,7 +108,6 @@
         <el-form-item label="类型">
           <el-select v-model="pay.payType" style="width:100%">
             <el-option label="定金" value="DEPOSIT" /><el-option label="尾款" value="BALANCE" />
-            <el-option label="贷款到账" value="LOAN" /><el-option label="保费" value="INSURANCE" />
           </el-select>
         </el-form-item>
         <el-form-item label="金额"><el-input-number v-model="pay.amount" :min="0" :precision="2" style="width:100%" /></el-form-item>
