@@ -308,6 +308,7 @@ public class InvoiceService {
         if (invoiceMapper.markRedFlushing(id) == 0) {
             throw new BizException("发票正在红冲或状态不允许: " + mustGet(id).getStatus());
         }
+        orig.setStatus("RED_FLUSHING");
         Invoice red = new Invoice();
         red.setInvoiceNo(codeGenerator.next("INV"));
         red.setOrderId(orig.getOrderId());
@@ -377,16 +378,14 @@ public class InvoiceService {
         return m;
     }
 
-    /** 手工同步：对 ISSUING 的发票调用平台 query（无 providerRef 时用 invoiceNo 作 requestId）。 */
+    /** 手工同步：对 ISSUING 的发票调用平台 query（providerRef 可空，requestId 为开票报文中的 invoiceNo）。 */
     @Transactional
     public Invoice sync(Long id) {
         Invoice inv = mustGet(id);
         if (!"ISSUING".equals(inv.getStatus())) {
             return inv;
         }
-        String ref =
-                inv.getProviderRef() != null ? inv.getProviderRef() : inv.getInvoiceNo();
-        TaxInvoiceGateway.IssueResult r = gateway.query(ref);
+        TaxInvoiceGateway.IssueResult r = gateway.query(inv.getProviderRef(), inv.getInvoiceNo());
         if (r.isSuccess() && !r.isPending()) {
             applyIssued(inv, r);
             if (inv.getRedOfInvoiceId() != null) {

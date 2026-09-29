@@ -121,23 +121,19 @@ class InvoiceServiceTest {
         orig.setTaxAmount(new BigDecimal("11.50"));
         orig.setNetAmount(new BigDecimal("88.50"));
         when(im.selectById(1L)).thenReturn(orig);
-        // 模拟 SQL 侧状态翻转
-        when(im.markRedFlushing(1L))
-                .thenAnswer(
-                        q -> {
-                            orig.setStatus("RED_FLUSHING");
-                            return 1;
-                        });
+        // 库内已由 markRedFlushing 置为 RED_FLUSHING，但内存对象不变，写回时不应覆盖为 ISSUED
+        when(im.markRedFlushing(1L)).thenReturn(1);
         when(gw.redFlush(any(), any(), any())).thenReturn(result(false, true));
 
         Invoice red = svc.redFlush(1L);
         assertEquals("ISSUING", red.getStatus());
         assertEquals("err", red.getErrorMsg());
         assertEquals("RED_FLUSHING", orig.getStatus());
+        verify(im).updateById(orig);
 
-        // sync：无 providerRef 时以 invoiceNo 为 requestId 查询；非可重试失败 → FAILED + 原票恢复
+        // sync：无 providerRef，requestId 为红票 invoiceNo；非可重试失败 → FAILED + 原票恢复
         when(im.selectById(red.getId())).thenReturn(red);
-        when(gw.query(anyString())).thenReturn(result(false, false));
+        when(gw.query(isNull(), eq(red.getInvoiceNo()))).thenReturn(result(false, false));
         svc.sync(red.getId());
         assertEquals("FAILED", red.getStatus());
         assertEquals("ISSUED", orig.getStatus());
