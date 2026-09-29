@@ -1,7 +1,13 @@
 -- 增量升级：dms_purchase_receipt_line.remark + dms_daily_report（对应 schema-mysql.sql 相同定义）
--- MySQL 8 不支持 ADD COLUMN IF NOT EXISTS：对已有该列的库执行前请先确认。
+-- 必须幂等：本目录挂载为 docker-entrypoint-initdb.d，在全新数据卷上会先于应用建表执行；
+-- 对已有库可重复手工执行。用 information_schema + PREPARE 判断，避免裸 ALTER 在表/列不存在时报错。
 
-ALTER TABLE dms_purchase_receipt_line ADD COLUMN remark VARCHAR(255);
+SET @db = DATABASE();
+SET @sql = (SELECT IF(
+  EXISTS(SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=@db AND TABLE_NAME='dms_purchase_receipt_line')
+  AND NOT EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=@db AND TABLE_NAME='dms_purchase_receipt_line' AND COLUMN_NAME='remark'),
+  'ALTER TABLE dms_purchase_receipt_line ADD COLUMN remark VARCHAR(255)', 'SELECT 1'));
+PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 CREATE TABLE IF NOT EXISTS dms_daily_report (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -38,7 +38,7 @@ zcat deploy/backup/dms-xxx.sql.gz | docker compose -f deploy/docker-compose.yml 
 ## 升级与 schema 变更约定
 
 - **全新库**：由 `schema-mysql.sql` 初始化（与 H2 `schema.sql` 列集合由 `SchemaConsistencyTest` 保证一致）。
-- **已有库升级**：在 `deploy/mysql/upgrade/` 放置 `V<yyyymmdd>__<desc>.sql`，利用 docker-entrypoint-initdb.d 仅对新卷执行的机制；对存量库请手工执行对应增量脚本（MySQL 8 不支持 `ADD COLUMN IF NOT EXISTS`，需自行判断列是否存在）。
+- **已有库升级**：在 `deploy/mysql/upgrade/` 放置 `V<yyyymmdd>__<desc>.sql`，利用 docker-entrypoint-initdb.d 仅对新卷执行的机制；对存量库请手工执行对应增量脚本。**升级脚本必须幂等**：initdb.d 在全新卷上先于应用建表执行（此时表尚不存在），且 MySQL 8 不支持 `ADD COLUMN IF NOT EXISTS`，需用 `information_schema` + `PREPARE` 判断后再改（参考 `V20260929__receipt_line_remark_daily_report.sql`）。
 - 升级镜像：`git pull && ./deploy.sh up`（compose 会重建镜像并重启容器，数据卷保留）。
 
 ## 常用命令
