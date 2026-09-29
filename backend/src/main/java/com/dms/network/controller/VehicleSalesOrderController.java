@@ -45,12 +45,29 @@ public class VehicleSalesOrderController
         if (!"NEW".equals(cur.getStatus())) {
             throw new BizException("订单当前状态不允许修改");
         }
+        java.math.BigDecimal newDeposit =
+                entity.getDeposit() == null ? java.math.BigDecimal.ZERO : entity.getDeposit();
+        java.math.BigDecimal curDeposit =
+                cur.getDeposit() == null ? java.math.BigDecimal.ZERO : cur.getDeposit();
+        if (newDeposit.compareTo(curDeposit) != 0) {
+            throw new BizException("定金已入账，不可修改，请通过收款登记调整");
+        }
+        if (entity.getPrice() == null
+                || entity.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BizException("车价须大于 0");
+        }
+        if (cur.getLoanAmount() != null
+                && cur.getLoanAmount().signum() > 0
+                && ("APPLIED".equals(cur.getLoanStatus())
+                        || "APPROVED".equals(cur.getLoanStatus()))
+                && entity.getPrice().compareTo(cur.getLoanAmount()) < 0) {
+            throw new BizException("车价不能低于已申请贷款金额");
+        }
         cur.setCustomerId(entity.getCustomerId());
         cur.setModelCode(entity.getModelCode());
         cur.setVin(entity.getVin());
         cur.setColor(entity.getColor());
         cur.setPrice(entity.getPrice());
-        cur.setDeposit(entity.getDeposit());
         cur.setRemark(entity.getRemark());
         mapper.updateById(cur);
         return R.ok(cur);

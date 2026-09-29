@@ -42,6 +42,125 @@ class InvoiceServiceTest {
         return new InvoiceService(im, lm, tcm, som, wom, wlm, wpm, cg, new MockTaxAdapter(0));
     }
 
+    private InvoiceService newService(
+            InvoiceMapper im,
+            InvoiceLineMapper lm,
+            com.dms.invoice.service.TaxInvoiceGateway gw) {
+        TaxConfigMapper tcm = mock(TaxConfigMapper.class);
+        com.dms.invoice.entity.TaxConfig tc = new com.dms.invoice.entity.TaxConfig();
+        tc.setTaxRate(new BigDecimal("0.13"));
+        when(tcm.selectOne(any())).thenReturn(tc);
+        com.dms.network.mapper.VehicleSalesOrderMapper som =
+                mock(com.dms.network.mapper.VehicleSalesOrderMapper.class);
+        WorkOrderMapper wom = mock(WorkOrderMapper.class);
+        CodeGenerator cg = mock(CodeGenerator.class);
+        when(cg.next(anyString())).thenReturn("INV-TEST-1");
+        return new InvoiceService(
+                im, lm, tcm, som, wom,
+                mock(WorkOrderLaborMapper.class), mock(WorkOrderPartMapper.class), cg, gw);
+    }
+
+    private static com.dms.invoice.service.TaxInvoiceGateway.IssueResult result(
+            boolean success, boolean retryable) {
+        com.dms.invoice.service.TaxInvoiceGateway.IssueResult r =
+                new com.dms.invoice.service.TaxInvoiceGateway.IssueResult();
+        r.setSuccess(success);
+        r.setRetryable(retryable);
+        r.setErrorMsg("err");
+        return r;
+    }
+
+    @Test
+    void issueRetryableStaysIssuing() {
+        InvoiceMapper im = mock(InvoiceMapper.class);
+        com.dms.invoice.service.TaxInvoiceGateway gw =
+                mock(com.dms.invoice.service.TaxInvoiceGateway.class);
+        when(gw.issue(any(), any())).thenReturn(result(false, true));
+        InvoiceService svc = newService(im, mock(InvoiceLineMapper.class), gw);
+        Invoice inv = new Invoice();
+        inv.setId(1L);
+        inv.setStatus("DRAFT");
+        inv.setDealerCode("D001");
+        when(im.selectById(1L)).thenReturn(inv);
+        when(im.markIssuing(1L)).thenReturn(1);
+        svc.issue(1L);
+        assertEquals("ISSUING", inv.getStatus());
+        assertEquals("err", inv.getErrorMsg());
+    }
+
+    @Test
+    void issueNonRetryableFails() {
+        InvoiceMapper im = mock(InvoiceMapper.class);
+        com.dms.invoice.service.TaxInvoiceGateway gw =
+                mock(com.dms.invoice.service.TaxInvoiceGateway.class);
+        when(gw.issue(any(), any())).thenReturn(result(false, false));
+        InvoiceService svc = newService(im, mock(InvoiceLineMapper.class), gw);
+        Invoice inv = new Invoice();
+        inv.setId(1L);
+        inv.setStatus("DRAFT");
+        inv.setDealerCode("D001");
+        when(im.selectById(1L)).thenReturn(inv);
+        when(im.markIssuing(1L)).thenReturn(1);
+        svc.issue(1L);
+        assertEquals("FAILED", inv.getStatus());
+    }
+
+    @Test
+    void redFlushRetryableThenSyncNonRetryable() {
+        InvoiceMapper im = mock(InvoiceMapper.class);
+        InvoiceLineMapper lm = mock(InvoiceLineMapper.class);
+        com.dms.invoice.service.TaxInvoiceGateway gw =
+                mock(com.dms.invoice.service.TaxInvoiceGateway.class);
+        InvoiceService svc = newService(im, lm, gw);
+
+        Invoice orig = new Invoice();
+        orig.setId(1L);
+        orig.setStatus("ISSUED");
+        orig.setDealerCode("D001");
+        orig.setAmount(new BigDecimal("100.00"));
+        orig.setTaxAmount(new BigDecimal("11.50"));
+        orig.setNetAmount(new BigDecimal("88.50"));
+        when(im.selectById(1L)).thenReturn(orig);
+        // 模拟 SQL 侧状态翻转
+        when(im.markRedFlushing(1L))
+                .thenAnswer(
+                        q -> {
+                            orig.setStatus("RED_FLUSHING");
+                            return 1;
+                        });
+        when(gw.redFlush(any(), any(), any())).thenReturn(result(false, true));
+
+        Invoice red = svc.redFlush(1L);
+        assertEquals("ISSUING", red.getStatus());
+        assertEquals("err", red.getErrorMsg());
+        assertEquals("RED_FLUSHING", orig.getStatus());
+
+        // sync：无 providerRef 时以 invoiceNo 为 requestId 查询；非可重试失败 → FAILED + 原票恢复
+        when(im.selectById(red.getId())).thenReturn(red);
+        when(gw.query(anyString())).thenReturn(result(false, false));
+        svc.sync(red.getId());
+        assertEquals("FAILED", red.getStatus());
+        assertEquals("ISSUED", orig.getStatus());
+    }
+
+    @Test
+    void callbackResolvesByRequestId() {
+        InvoiceMapper im = mock(InvoiceMapper.class);
+        InvoiceLineMapper lm = mock(InvoiceLineMapper.class);
+        InvoiceService svc = newService(im, lm, mock(com.dms.invoice.service.TaxInvoiceGateway.class));
+        Invoice inv = new Invoice();
+        inv.setId(9L);
+        inv.setInvoiceNo("INV-TEST-1");
+        inv.setStatus("ISSUING");
+        // providerRef/号码均缺 → 直接命中 requestId 回退
+        when(im.selectOne(any())).thenReturn(inv);
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("requestId", "INV-TEST-1");
+        body.put("status", "ISSUED");
+        Invoice r = svc.callback("SIM", body);
+        assertEquals("ISSUED", r.getStatus());
+    }
+
     @Test
     void discountedOrderLinesSumEqualsHeader() {
         InvoiceMapper im = mock(InvoiceMapper.class);

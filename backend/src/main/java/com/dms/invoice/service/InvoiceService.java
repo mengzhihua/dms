@@ -286,6 +286,9 @@ public class InvoiceService {
             inv.setProviderRef(r.getProviderRef());
             inv.setIssuedTime(LocalDateTime.now());
             inv.setErrorMsg(null);
+        } else if (r.isRetryable()) {
+            // 可重试错误（超时/网络/5xx）：平台可能已受理，保持 ISSUING 待 sync/回调确认
+            inv.setErrorMsg(r.getErrorMsg());
         } else {
             inv.setStatus("FAILED");
             inv.setErrorMsg(r.getErrorMsg());
@@ -323,7 +326,7 @@ public class InvoiceService {
         red.setStatus("ISSUING");
         invoiceMapper.insert(red);
         // 传给税控平台的红票明细必须为负数，但不落库
-        List<InvoiceLine> redLines = new java.util.ArrayList<>();
+        List<InvoiceLine> redLines = new ArrayList<>();
         for (InvoiceLine l : lines(orig.getId())) {
             InvoiceLine c = new InvoiceLine();
             c.setName(l.getName());
@@ -350,10 +353,13 @@ public class InvoiceService {
             red.setProviderRef(r.getProviderRef());
             red.setIssuedTime(LocalDateTime.now());
             orig.setStatus("RED_FLUSHED");
+        } else if (r.isRetryable()) {
+            // 可重试错误：红票保持 ISSUING、原票保持 RED_FLUSHING，待 sync/回调确认
+            red.setErrorMsg(r.getErrorMsg());
         } else {
             red.setStatus("FAILED");
             red.setErrorMsg(r.getErrorMsg());
-            // 红冲失败恢复原票状态
+            // 平台明确拒绝才恢复原票状态
             orig.setStatus("ISSUED");
         }
         invoiceMapper.updateById(red);
@@ -371,14 +377,16 @@ public class InvoiceService {
         return m;
     }
 
-    /** 手工同步：对 ISSUING 且有 providerRef 的发票调用平台 query。 */
+    /** 手工同步：对 ISSUING 的发票调用平台 query（无 providerRef 时用 invoiceNo 作 requestId）。 */
     @Transactional
     public Invoice sync(Long id) {
         Invoice inv = mustGet(id);
-        if (!"ISSUING".equals(inv.getStatus()) || inv.getProviderRef() == null) {
+        if (!"ISSUING".equals(inv.getStatus())) {
             return inv;
         }
-        TaxInvoiceGateway.IssueResult r = gateway.query(inv.getProviderRef());
+        String ref =
+                inv.getProviderRef() != null ? inv.getProviderRef() : inv.getInvoiceNo();
+        TaxInvoiceGateway.IssueResult r = gateway.query(ref);
         if (r.isSuccess() && !r.isPending()) {
             applyIssued(inv, r);
             if (inv.getRedOfInvoiceId() != null) {
@@ -437,6 +445,12 @@ public class InvoiceService {
                             new QueryWrapper<Invoice>()
                                     .eq("tax_invoice_number", number)
                                     .last("LIMIT 1"));
+        }
+        String reqId = (String) body.get("requestId");
+        if (inv == null && reqId != null) {
+            inv =
+                    invoiceMapper.selectOne(
+                            new QueryWrapper<Invoice>().eq("invoice_no", reqId).last("LIMIT 1"));
         }
         if (inv == null) {
             throw new BizException("找不到对应发票");
