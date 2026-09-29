@@ -3,6 +3,8 @@ package com.dms.invoice;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.dms.DmsApplication;
+import com.dms.invoice.entity.Invoice;
+import com.dms.invoice.mapper.InvoiceMapper;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +37,7 @@ import org.springframework.test.context.TestPropertySource;
         })
 class TaxSimFlowTest {
     @Autowired TestRestTemplate http;
+    @Autowired InvoiceMapper invoiceMapper;
 
     @SuppressWarnings("unchecked")
     private String adminToken() {
@@ -106,6 +109,15 @@ class TaxSimFlowTest {
         assertNotNull(((Map) pending.get("data")).get("providerRef"));
         Map<String, Object> synced = post(admin, "/api/invoice/" + id2 + "/sync");
         assertEquals("ISSUED", ((Map) synced.get("data")).get("status"));
+
+        // PENDING 但响应丢失（无 providerRef）→ sync 仅凭 requestId(invoiceNo) 也能完成
+        Long id4 = createInvoice(admin, "PENDING");
+        post(admin, "/api/invoice/" + id4 + "/issue");
+        Invoice lost = invoiceMapper.selectById(id4);
+        lost.setProviderRef(null);
+        invoiceMapper.updateById(lost);
+        Map<String, Object> syncedByReq = post(admin, "/api/invoice/" + id4 + "/sync");
+        assertEquals("ISSUED", ((Map) syncedByReq.get("data")).get("status"));
 
         // FAIL → FAILED
         Long id3 = createInvoice(admin, "FAIL");
