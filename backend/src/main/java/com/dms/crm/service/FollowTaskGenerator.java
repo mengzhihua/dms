@@ -162,6 +162,7 @@ public class FollowTaskGenerator {
                             .eq("status", "PENDING")
                             .set("status", "DONE")
                             .set("result", "交车自动完成")
+                            .set("done_at", LocalDateTime.now())
                             .set("updated_at", LocalDateTime.now()));
         }
         insertIfAbsent(buildServiceFollowup(o));

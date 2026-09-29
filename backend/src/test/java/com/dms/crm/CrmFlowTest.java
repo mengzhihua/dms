@@ -288,6 +288,7 @@ class CrmFlowTest {
         assertEquals(
                 "DONE",
                 taskMapper.selectById(t.getId()).getStatus());
+        assertNotNull(taskMapper.selectById(t.getId()).getDoneAt());
 
         // 新周期可重新生成
         v.setLastServiceDate(LocalDate.now().minusMonths(8));
@@ -304,6 +305,30 @@ class CrmFlowTest {
                         .eq("status", "PENDING"));
         // 本测试手工插入的提醒（已置 DONE）也要删除，避免抢占 list.get(0) 影响其他用例
         taskMapper.deleteById(t.getId());
+    }
+
+    @Test
+    void deliverDefaultsNextServiceMileage() {
+        // 车型无保养间隔（甚至无车型）时，交车按默认 10000km 推进下次保养里程
+        Vehicle v = new Vehicle();
+        v.setVin("VDEF" + System.currentTimeMillis());
+        v.setPlateNo("沪DD003");
+        v.setDealerCode("D001");
+        v.setMileage(42000);
+        v.setNextServiceMileage(50000);
+        vehicleMapper.insert(v);
+
+        WorkOrder o = new WorkOrder();
+        o.setOrderNo("WO-DEF-T" + System.currentTimeMillis());
+        o.setDealerCode("D001");
+        o.setVehicleId(v.getId());
+        o.setVin(v.getVin());
+        o.setCustomerId(1L);
+        o.setStatus("SETTLED");
+        orderMapper.insert(o);
+        orderService.deliver(o.getId(), "tester");
+
+        assertEquals(52000, vehicleMapper.selectById(v.getId()).getNextServiceMileage().intValue());
     }
 
     private Long countPending(String vin, String token) {

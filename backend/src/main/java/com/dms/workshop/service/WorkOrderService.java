@@ -46,6 +46,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class WorkOrderService {
+    /** 车型未配置保养间隔里程时的默认间隔（km），保证下次保养里程随交车推进。 */
+    private static final int DEFAULT_MAINT_INTERVAL_KM = 10000;
+
     private final WorkOrderMapper orderMapper;
     private final WorkOrderLaborMapper laborMapper;
     private final WorkOrderPartMapper partLineMapper;
@@ -524,8 +527,12 @@ public class WorkOrderService {
                                 : modelMapper.selectOne(
                                         new QueryWrapper<VehicleModel>()
                                                 .eq("code", v.getModelCode()));
-                if (m != null && m.getMaintenanceIntervalKm() != null && v.getMileage() != null) {
-                    v.setNextServiceMileage(v.getMileage() + m.getMaintenanceIntervalKm());
+                if (v.getMileage() != null) {
+                    int km =
+                            m != null && m.getMaintenanceIntervalKm() != null
+                                    ? m.getMaintenanceIntervalKm()
+                                    : DEFAULT_MAINT_INTERVAL_KM;
+                    v.setNextServiceMileage(v.getMileage() + km);
                 }
                 vehicleMapper.updateById(v);
             }
