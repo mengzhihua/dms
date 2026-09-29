@@ -1156,11 +1156,11 @@ details.a-disclosure[open] > summary::before {
   <h2 class="a-section__title">一页结论</h2>
   <p class="a-prose">DMS 经销商管理系统已完成从零到可部署的整体建设：覆盖经销商/直营网络、整车销售、维修工单全流程、备件库存与补货、维修指导、满意度调研、税务发票、登录权限与生产部署形态，并对外开放 IR 控制塔接口。代码全部通过 PR 评审合并，后端单测、全链路冒烟和浏览器回归均通过。</p>
   <div class="a-grid">
-    <div class="a-metric"><div class="a-metric__label">已合并 PR</div><div class="a-metric__value">29</div><div class="a-metric__delta">另 1 个（保修索赔）评审中</div></div>
+    <div class="a-metric"><div class="a-metric__label">已合并 PR</div><div class="a-metric__value">48</div><div class="a-metric__delta">v1.0.0 最终版，全部评审 PR 已合并</div></div>
     <div class="a-metric"><div class="a-metric__label">业务模块</div><div class="a-metric__value">10</div><div class="a-metric__delta">网络 / 客户 / 备件 / 指导 / 工单 / 索赔 / 满意度 / 发票 / 工作台 / 系统</div></div>
     <div class="a-metric"><div class="a-metric__label">数据表</div><div class="a-metric__value">36</div><div class="a-metric__delta">H2 开发库 · MySQL 生产 profile</div></div>
     <div class="a-metric"><div class="a-metric__label">前端页面</div><div class="a-metric__value">37</div><div class="a-metric__delta">Vue 3 + Element Plus</div></div>
-    <div class="a-metric"><div class="a-metric__label">自动化测试</div><div class="a-metric__value">77</div><div class="a-metric__delta">JUnit 集成测试 + 全链路冒烟脚本</div></div>
+    <div class="a-metric"><div class="a-metric__label">自动化测试</div><div class="a-metric__value">113</div><div class="a-metric__delta">JUnit 集成测试 + 全链路冒烟脚本</div></div>
     <div class="a-metric"><div class="a-metric__label">后端源码</div><div class="a-metric__value">160+</div><div class="a-metric__delta">Java 8 · Spring Boot 2.7 · MyBatis-Plus</div></div>
   </div>
 </section>
@@ -1321,6 +1321,8 @@ HTTP 网关：POST {endpoint}/issue|query|red-flush，X-App-Id / X-Timestamp / X
           <tr><th scope="row">生产/风控/销售/税控</th><td data-numeric>4</td></tr>
           <tr><th scope="row">回归与文档</th><td data-numeric>6</td></tr>
           <tr><th scope="row">保修索赔</th><td data-numeric>1</td></tr>
+          <tr><th scope="row">采购/CRM/报表</th><td data-numeric>3</td></tr>
+          <tr><th scope="row">评审修复与发布加固</th><td data-numeric>13</td></tr>
         </tbody>
       </table>
     </div>
@@ -1340,13 +1342,19 @@ HTTP 网关：POST {endpoint}/issue|query|red-flush，X-App-Id / X-Timestamp / X
         <tr><td>#21</td><td>税控 HTTP 网关联调就绪：TaxRequest 报文、HMAC 签名、pending 同步、tax-sim</td><td>已合并</td></tr>
         <tr><td>#22</td><td>发布包 / 开放 IR 回归修复（种子幂等、401 / 400 语义）</td><td>已合并</td></tr>
         <tr><td>#26–#28</td><td>技术方案、项目亮点、图文导读文档</td><td>已合并</td></tr>
-        <tr><td>#30</td><td>保修索赔全流程：提交 / OEM 审核 / 配件回收 / 结算付款</td><td>评审中</td></tr>
+        <tr><td>#30</td><td>保修索赔全流程：提交 / OEM 审核 / 配件回收 / 结算付款</td><td>已合并</td></tr>
+        <tr><td>#31–#34</td><td>汇报文档、移动端适配、保修评审修复</td><td>已合并</td></tr>
+        <tr><td>#35</td><td>备件采购与 OEM 订货：询价 → 采购单 → 分批到货 → 对账付款</td><td>已合并</td></tr>
+        <tr><td>#36 #38</td><td>客户关系：跟进任务 / 保养提醒 / 短信微信通知通道</td><td>已合并</td></tr>
+        <tr><td>#37 #39 #40 #41</td><td>多维报表 Excel/PDF 导出、经营日报、评审修复</td><td>已合并</td></tr>
+        <tr><td>#42 #44</td><td>交车关闭待处理保养提醒、默认保养间隔、升级脚本</td><td>已合并</td></tr>
+        <tr><td>#43 #45–#48</td><td>19 项历史评审修复、幂等升级脚本、订单资金校验、税控可重试语义</td><td>已合并</td></tr>
       </tbody>
     </table>
   </div>
   <h3>测试与验证</h3>
   <ul class="a-prose">
-    <li>后端 JUnit 集成测试 77 个：状态机、费用计算、库存预留 / 消耗、税控 HTTP 适配（真实 HttpServer）、tax-sim 联调、角色矩阵、数据范围、开放接口、种子幂等、索赔流程。</li>
+    <li>后端 JUnit 集成测试 113 个：状态机、费用计算、库存预留 / 消耗、税控 HTTP 适配（真实 HttpServer）、tax-sim 联调、角色矩阵、数据范围、开放接口、种子幂等、索赔流程。</li>
     <li>全链路冒烟脚本 <code>scripts/smoke.sh</code>：认证负例 → 客户车辆 → 工单 10 步 → 结算开票 → 交车调研 → 低分投诉 → 保修索赔 → 返工不重复扣库 → 红冲 → 目标考核 → 销售流程，输出 SMOKE OK。</li>
     <li>三轮浏览器端到端测试（含录屏）：首轮全模块、登录权限与跨店拦截、发布包 + 开放 IR 回归；发现的 9 个问题均已修复并复测。</li>
     <li>税控 HTTP 通道以 tax-sim 模拟器完成 HMAC 校验、pending 同步、失败、红冲联调（<code>scripts/tax-http-smoke.sh</code>）。</li>
@@ -1364,14 +1372,11 @@ HTTP 网关：POST {endpoint}/issue|query|red-flush，X-App-Id / X-Timestamp / X
 </section>
 
 <section class="a-section">
-  <h2 class="a-section__title">8. 下一步计划</h2>
-  <article class="a-phase"><div class="a-phase__index">01</div><div><div class="a-phase__head"><h3 class="a-phase__title">保修索赔全流程</h3><span class="a-status" data-state="active">评审中 · PR #30</span></div><p class="a-prose">经销商提交 → OEM 审核 / 退回 → 配件回收 → 按月结算付款。</p></div></article>
-  <article class="a-phase"><div class="a-phase__index">02</div><div><div class="a-phase__head"><h3 class="a-phase__title">备件采购与 OEM 订货</h3><span class="a-status" data-state="planned">计划</span></div><p class="a-prose">询价 → 采购订单 → 到货入库 → 对账；与现有缺货补货打通。</p></div></article>
-  <article class="a-phase"><div class="a-phase__index">03</div><div><div class="a-phase__head"><h3 class="a-phase__title">客户关系</h3><span class="a-status" data-state="planned">计划</span></div><p class="a-prose">跟进任务、保养到期提醒、短信 / 微信通知通道适配。</p></div></article>
-  <article class="a-phase"><div class="a-phase__index">04</div><div><div class="a-phase__head"><h3 class="a-phase__title">报表导出与经营日报</h3><span class="a-status" data-state="planned">计划</span></div><p class="a-prose">多维报表 Excel / PDF 导出、经营日报定时生成。</p></div></article>
-  <article class="a-phase"><div class="a-phase__index">05</div><div><div class="a-phase__head"><h3 class="a-phase__title">MySQL 生产验证 + Docker Compose</h3><span class="a-status" data-state="planned">计划</span></div><p class="a-prose">MySQL 建表脚本验证、一键部署编排。</p></div></article>
-  <article class="a-phase"><div class="a-phase__index">06</div><div><div class="a-phase__head"><h3 class="a-phase__title">接入真实税控平台</h3><span class="a-status" data-state="blocked">待资料</span></div><p class="a-prose">需要网关地址、appId / appSecret 与协议文档，届时按对方字段调整 <code>TaxRequest</code> 与签名。</p></div></article>
-  <div class="a-callout a-callout--decision"><strong>待决事项：</strong>真实税控平台的接入资料尚未提供；生产数据库选型（MySQL 版本、是否托管）需确认后再做 Compose 编排。</div>
+  <h2 class="a-section__title">8. 遗留事项</h2>
+  <p class="a-prose">v1.0.0 全部规划模块已交付并合并：保修索赔（#30）、备件采购（#35）、客户关系（#36）、报表与日报（#39）、MySQL + Docker Compose。以下为后续运营待办。</p>
+  <article class="a-phase"><div class="a-phase__index">01</div><div><div class="a-phase__head"><h3 class="a-phase__title">接入真实税控平台</h3><span class="a-status" data-state="blocked">待资料</span></div><p class="a-prose">配置 <code>dms.tax.*</code> 并按平台协议调整 <code>TaxRequest</code> 字段映射。</p></div></article>
+  <article class="a-phase"><div class="a-phase__index">02</div><div><div class="a-phase__head"><h3 class="a-phase__title">生产库演示账号清理</h3><span class="a-status" data-state="planned">运维</span></div><p class="a-prose">prod 不会自动删除旧库中残留的演示账号，初始化前请使用全新库或手工清理。</p></div></article>
+  <article class="a-phase"><div class="a-phase__index">03</div><div><div class="a-phase__head"><h3 class="a-phase__title">对接真实通知通道</h3><span class="a-status" data-state="planned">待配置</span></div><p class="a-prose">prod 通知通道默认 MOCK；对接短信 / 微信需配置 <code>dms.crm.notify.*</code> 通道参数。</p></div></article>
 </section>
 
 
