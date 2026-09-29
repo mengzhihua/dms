@@ -49,6 +49,11 @@ class SalesFlowTest {
     }
 
     @SuppressWarnings("unchecked")
+    private Map<String, Object> put(String token, String path, Map<String, Object> body) {
+        ResponseEntity<Map> r = http.exchange(path, HttpMethod.PUT, auth(token, body), Map.class);
+        return r.getBody();
+    }
+
     private Map<String, Object> get(String token, String path) {
         ResponseEntity<Map> r =
                 http.exchange(path, HttpMethod.GET, auth(token, null), Map.class);
@@ -156,5 +161,53 @@ class SalesFlowTest {
         d.put("pdiPassed", true);
         Map<String, Object> r = post(admin, "/api/network/sales-order/" + id + "/deliver", d);
         assertTrue(String.valueOf(r.get("msg")).contains("尾款未结清"));
+    }
+
+    @Test
+    void editRejectsDepositChange() {
+        String admin = login("admin", "123456");
+        Long id = createOrder(admin, 100000, 5000);
+
+        // 改定金 → 拒绝（已入账）
+        Map<String, Object> body = new HashMap<>();
+        body.put("customerId", 1);
+        body.put("modelCode", "M001");
+        body.put("price", 100000);
+        body.put("deposit", 6000);
+        Map<String, Object> r = put(admin, "/api/network/sales-order/" + id, body);
+        assertTrue(String.valueOf(r.get("msg")).contains("定金已入账"));
+
+        // 定金不变 + 改其他字段 → 成功
+        body.put("deposit", 5000);
+        body.put("color", "白色");
+        body.put("remark", "修改备注");
+        r = put(admin, "/api/network/sales-order/" + id, body);
+        assertEquals(0, ((Number) r.get("code")).intValue(), String.valueOf(r));
+        assertEquals("白色", ((Map<?, ?>) r.get("data")).get("color"));
+    }
+
+    @Test
+    void editPriceNotBelowAppliedLoan() {
+        String admin = login("admin", "123456");
+        Long id = createOrder(admin, 150000, 5000);
+
+        Map<String, Object> fin = new HashMap<>();
+        fin.put("loanProvider", "上汽通用金融");
+        fin.put("loanAmount", 100000);
+        post(admin, "/api/network/sales-order/" + id + "/finance", fin);
+
+        // 车价低于已申请贷款 → 拒绝
+        Map<String, Object> body = new HashMap<>();
+        body.put("customerId", 1);
+        body.put("modelCode", "M001");
+        body.put("deposit", 5000);
+        body.put("price", 80000);
+        Map<String, Object> r = put(admin, "/api/network/sales-order/" + id, body);
+        assertTrue(String.valueOf(r.get("msg")).contains("车价不能低于已申请贷款金额"));
+
+        // 车价 120000 ≥ 贷款额 → 成功
+        body.put("price", 120000);
+        r = put(admin, "/api/network/sales-order/" + id, body);
+        assertEquals(0, ((Number) r.get("code")).intValue(), String.valueOf(r));
     }
 }

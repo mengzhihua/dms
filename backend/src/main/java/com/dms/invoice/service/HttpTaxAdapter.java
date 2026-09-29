@@ -67,6 +67,8 @@ public class HttpTaxAdapter implements TaxInvoiceGateway {
     public IssueResult query(String providerRef) {
         java.util.Map<String, String> body = new java.util.HashMap<>();
         body.put("providerRef", providerRef);
+        // 同时带 requestId（=invoiceNo），平台可按任一标识查询
+        body.put("requestId", providerRef);
         return call(endpoint + "/query", body);
     }
 
