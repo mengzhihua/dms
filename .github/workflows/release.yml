@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - "main"
+    tags:
+      - "v*"
     paths-ignore:
       - "**/*.md"
       - ".gitignore"
@@ -152,7 +154,11 @@ jobs:
           mkdir -p upload
           find dist -type f \( -name '*.zip' -o -name '*.jar' \) -exec cp {} upload/ \;
           ls -lh upload
-          TAG="v$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "title=DMS 经销商管理 $TAG" >> "$GITHUB_OUTPUT"
       - name: Publish GitHub Release
